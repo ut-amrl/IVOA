@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Kdev project files
+*.kdev4
+
+# Binary files
+data_preprocessing/bin
