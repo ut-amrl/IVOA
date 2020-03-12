@@ -30,11 +30,13 @@ endif ()
 find_package(OpenCV 3.0 REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Boost REQUIRED)
+find_package (gflags REQUIRED)
 
 
 include_directories( 
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
+  ${gflags_INCLUDE_DIR}
   ${PROJ_INC_DIR}
 )
 
@@ -74,7 +76,7 @@ rosbuild_add_executable(airsim_data_processing
                                 "src/dataset.cpp"
                                 "src/depth2pointcloud.cpp"
                                 "src/io_access.cpp")
-target_link_libraries(airsim_data_processing  glog ${OpenCV_LIBS}
+target_link_libraries(airsim_data_processing  glog gflags ${OpenCV_LIBS}
                                 "-lpopt" boost_system -lboost_filesystem
                                 -ljsoncpp yaml-cpp -lcnpy
                                  opencv_imgproc opencv_highgui)          

@@ -21,7 +21,7 @@ conda install -c anaconda scikit-learn
 ### Running the Code
 
 #### Train Dataset generation
-IVOA trains and runs on patches of the full input image, hence the training data for IVOA consists of a set of image patches and their corresponding labels. Before training IVOA for your obstacle detection algorithm, convert your dataset to the format expected by IVOA: It is essentially the RGB images accompanied by multiple meta data files that contain information such as
+IVOA trains and runs on patches of the input image, hence the training data for IVOA consists of a set of image patches and their corresponding labels. Before training IVOA for your obstacle detection algorithm, convert your dataset to the format expected by IVOA: It is essentially the RGB images accompanied by multiple meta data files that contain information such as
 the coordinates of image patches to be extracted from the full images as well the corresponding ground truth and predicted labels for those patches by the
 perception model under test. Look at the `data_preprocessing` project which converts the recorded data from AirSim along with the output of the monodepth to the IVOA dataset format.
 

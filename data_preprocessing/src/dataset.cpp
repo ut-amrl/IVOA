@@ -51,7 +51,8 @@ void Dataset::LoadQueryPoints(const std::vector<cv::Point>& query_points) {
 }
 
 bool Dataset::LabelData(const cv::Mat& gt_obstacle_img, 
-                        const cv::Mat& pred_obstacle_img) {
+                        const cv::Mat& pred_obstacle_img,
+                        const std::string& name_prefix) {
   if (!query_points_loaded_) {
     return false;
   }
@@ -66,6 +67,8 @@ bool Dataset::LabelData(const cv::Mat& gt_obstacle_img,
   
   //TODO: Prune patch labels:
   patch_coord_ = query_points_;
+  
+  latest_img_name_prefix_ = name_prefix;
   
   UpdateDataset();
   
@@ -114,11 +117,13 @@ void Dataset::SaveToFile() {
 void Dataset::UpdateDataset() {
   // Update the name of the image
   char buff_l[30];
-  sprintf(buff_l, "%s_%010lu_l.jpg", session_name_.c_str(), img_count_);
+  sprintf(buff_l, "%s_%s_l.jpg", session_name_.c_str(), 
+                                  latest_img_name_prefix_.c_str());
   left_img_name_ = buff_l;
   
   char buff_ann_l[30];
-  sprintf(buff_ann_l, "%s_%010lu_l_ann.jpg", session_name_.c_str(),img_count_);
+  sprintf(buff_ann_l, "%s_%s_l_ann.jpg", session_name_.c_str(), 
+                                  latest_img_name_prefix_.c_str());
   left_img_annotated_name_ = buff_ann_l;
 
   
@@ -126,8 +131,8 @@ void Dataset::UpdateDataset() {
   patch_l_names_.clear();
   for (size_t i = 0; i < patch_coord_.size(); i++) {
     char buff_l_p[30];
-    sprintf(buff_l_p, "%s_%010lu_%05lu_l.jpg", session_name_.c_str(),
-            img_count_, i);
+    sprintf(buff_l_p, "%s_%s_%05lu_l.jpg", session_name_.c_str(),
+            latest_img_name_prefix_.c_str(), i);
     string patch_l_name = buff_l_p;
 
     patch_l_names_.push_back(patch_l_name);
@@ -194,7 +199,7 @@ void Dataset::AppendToJsonImPatchNames() {
     json_val_patch_names_["img_patch_name"].append(patch_l_names_[i]);
     json_val_patch_names_["corr_full_img_name"].append(left_img_name_);
     json_val_patch_names_["corr_full_img_index"].append(
-                          (int)(img_count_));
+                          atoi(latest_img_name_prefix_.c_str()));
   }
 }
 

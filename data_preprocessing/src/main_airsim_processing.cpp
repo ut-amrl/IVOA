@@ -27,6 +27,7 @@
 #include "opencv2/imgproc/imgproc.hpp"
 
 #include <glog/logging.h>
+#include <gflags/gflags.h>
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
@@ -52,6 +53,19 @@ using namespace IVOA;
 using std::vector;
 using cv::Point;
 
+
+// Command line flags flag
+DEFINE_int32(session_num, 0, "Session number to identify the generated "
+                             "portion of the dataset.");
+DEFINE_string(source_dir, "", "Path to the base directory of the source " 
+                              "dataset.");
+DEFINE_string(cam_extrinsics_path, "", "Path to the file containing the "
+                                       "left camera calibration file.");
+DEFINE_string(output_dataset_dir, "", "Path to save the generated datatset. ");
+DECLARE_bool(help);
+DECLARE_bool(helpshort);
+
+
 // Parameters
 const float kPositiveHeightObsThresh = 0.3; // meters
 const float kNegativeHeightObsThresh = 0.3; // meters
@@ -61,6 +75,22 @@ const float kPatchStride = 30;
 const double kObstacleRatioThresh = 0.05;
 const cv::Size kImageSize(960, 600);
 
+// Checks if all required command line arguments have been set
+void CheckCommandLineArgs(char** argv) {
+  vector<string> required_args = {"session_num",
+                                  "source_dir",
+                                  "cam_extrinsics_path",
+                                  "output_dataset_dir"};
+  
+  for (const string& arg_name:required_args) {
+    bool flag_not_set =   
+          gflags::GetCommandLineFlagInfoOrDie(arg_name.c_str()).is_default;
+    if (flag_not_set) {
+      gflags::ShowUsageWithFlagsRestrict(argv[0], "main_airsim_processing");
+      LOG(FATAL) << arg_name <<  " was not set." << endl;
+    }
+  }
+}
 
 vector<Point> GenerateQueryPoints(const cv::Size img_size,
                                   const float &patch_size,
@@ -89,19 +119,23 @@ int main(int argc, char **argv) {
   FLAGS_colorlogtostderr = 1;  // Colored logging.
   FLAGS_logtostderr = true;    // Don't log to disk
   
+  
+  string usage("This program converts the recorded data from AirSim along with" 
+    " the predicted depth output of the monodepth to the IVOA dataset "
+    " format :\n");
+  usage += string(argv[0]) + " <argument1> <argument2> ...";
+  gflags::SetUsageMessage(usage);
+
+  gflags::ParseCommandLineNonHelpFlags(&argc, &argv, true);
+  if (FLAGS_help) {
+    gflags::ShowUsageWithFlagsRestrict(argv[0], "main_airsim_processing");
+    return 0;
+  }
+  CheckCommandLineArgs(argv);
+  
   ros::init(argc, argv, "IVOA_data_preprocessing");
   ros::NodeHandle nh;
-  
-  //TODO: Read command line arguments
-  string base_dir = "/media/ssd2/datasets/AirSim_IVOA/initial_ml_tool";
-  int session_num = 0;
-  string cam_extrinsics_path = 
-              "/home/srabiee/My_Repos/IVOA/data_preprocessing/"
-              "util/Camera_Extrinsics.yaml";
-  string output_dataset_dir = "/media/ssd2/datasets/AirSim_IVOA/airsim_ivoa/";
-
-  
-  
+ 
   
   ros::Publisher point_cloud_publisher_gt =
       nh.advertise<sensor_msgs::PointCloud2>("/ivoa/gt_pointcloud", 1);
@@ -112,18 +146,21 @@ int main(int argc, char **argv) {
   // Using only one instance of Depth2Pointcloud since the depth and left RGB
   // camera share the same extrinsics and intrinsics in our AirSim setup 
   Depth2Pointcloud depth_img_converter;
-  depth_img_converter.LoadCameraCalibration(cam_extrinsics_path);
-  
-  //TODO: Read img_num from the img_depth directory
-  int img_num = 50;
-  string gt_depth_dir = base_dir + "/img_depth/";
-  string pred_depth_dir = base_dir + "/img_left/";
-  string left_img_dir = base_dir + "/img_left/";
+  depth_img_converter.LoadCameraCalibration(FLAGS_cam_extrinsics_path);
  
+
+  string gt_depth_dir = FLAGS_source_dir + "/img_depth/";
+  string pred_depth_dir = FLAGS_source_dir + "/img_left/";
+  string left_img_dir = FLAGS_source_dir + "/img_left/";
+ 
+  // Read the prefix of all avaiable datapoints
+  vector<int> filename_prefixes;
+  GetFileNamePrefixes(gt_depth_dir,
+                      &filename_prefixes);
   
   Dataset dataset(kPatchSize,
-                  session_num,
-                  output_dataset_dir,
+                  FLAGS_session_num,
+                  FLAGS_output_dataset_dir,
                   kObstacleRatioThresh);
 
   vector<Point> query_points = GenerateQueryPoints(kImageSize,
@@ -132,8 +169,7 @@ int main(int argc, char **argv) {
 
   dataset.LoadQueryPoints(query_points);
   
-  for (int i = 0; i < img_num; i++) {
-    cout << i << endl;
+  for (const int &i : filename_prefixes) {
     
     stringstream ss;
     ss << setfill('0') << setw(10) << i;
@@ -181,7 +217,7 @@ int main(int argc, char **argv) {
                                               kPositiveHeightObsThresh,
                                               kNegativeHeightObsThresh);
 
-    dataset.LabelData(obstacle_img_gt, obstacle_img_pred);
+    dataset.LabelData(obstacle_img_gt, obstacle_img_pred, prefix);
     dataset.SaveImages(left_img);
     
     if (kVisualization) {
@@ -210,7 +246,7 @@ int main(int argc, char **argv) {
 
   }
   
-
+  LOG(INFO) << "Saving the dataset ...";
   dataset.SaveToFile();
   
   return 0;

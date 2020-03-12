@@ -57,6 +57,42 @@ bool WriteJsonToFile(const string& path,
   return true;
 }
 
+
+// Given a direcotry whose content is supposed to be files named as ID numbers 
+// in the format %010d<suffix>, it will fill file_names_prefix with  
+// the prefix numbers of all available files.
+bool GetFileNamePrefixes(const std::string &directory,
+                         std::vector<int> *file_names_prefix) {
+  file_names_prefix->clear();
+  
+  const int kPrefixLength = 10;
+  char numbering[10];
+  
+  DIR* dirp = opendir(directory.c_str());
+  struct dirent * dp;
+  
+  if(!dirp) {
+    LOG(ERROR) << "Could not open directory " << directory 
+               << " for predicted image quality heatmaps.";
+  }
+
+  while ((dp = readdir(dirp)) != NULL){
+
+    // Ignore the '.' and ".." directories
+    if(!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, "..")) continue;
+    for(int i = 0; i < kPrefixLength ; i++){
+        numbering[i] = dp->d_name[i];
+    }
+   
+    int prefix_number = atoi(numbering);
+    file_names_prefix->push_back(prefix_number);
+  }
+  (void)closedir(dirp);
+  
+  return true;
+}
+
+
 PFM::PFM() {
 }
 

@@ -59,7 +59,8 @@ public:
   
   void LoadQueryPoints(const std::vector<cv::Point> &query_points);
   bool LabelData(const cv::Mat &gt_obstacle_img,
-                 const cv::Mat &pred_obstacle_img);
+                 const cv::Mat &pred_obstacle_img,
+                 const std::string& name_prefix);
   
   void SaveImages(const cv::Mat& left_im);
   
@@ -109,6 +110,7 @@ private:
   long unsigned int img_count_ = 0;
   long int img_patches_count_ = 0;
   int session_num_;
+  std::string latest_img_name_prefix_;
   std::string session_name_;
   std::string dataset_dir_;
   

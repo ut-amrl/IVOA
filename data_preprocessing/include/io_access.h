@@ -54,6 +54,12 @@ bool WriteJsonToFile(const std::string& path,
                 const std::string& file_name,
                 const Json::Value& json_obj);
 
+// Given a direcotry whose content is supposed to be files named as ID numbers 
+// in the format %010d<suffix>, it will fill file_names_prefix with  
+// the prefix numbers of all available files.
+bool GetFileNamePrefixes(const std::string &directory,
+                         std::vector<int> *file_names_prefix);
+
 enum PFM_endianness { BIG, LITTLE, ERROR};
 
 class PFM {
