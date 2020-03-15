@@ -197,10 +197,14 @@ int main(int argc, char **argv) {
     // Read the predicted depth image
     cnpy::NpyArray arr = cnpy::npy_load(pred_depth_path);
     float* loaded_data = arr.data<float>();
-    cv::Mat depth_img_pred = cv::Mat(arr.shape[2],
-                                     arr.shape[3],
+    cv::Mat depth_img_pred = cv::Mat(arr.shape[0],
+                                     arr.shape[1],
                                      CV_32F,
                                      loaded_data);
+    
+//     cout << "npy: " << arr.shape[0] << ", " << arr.shape[1] << ", "
+//                     << arr.shape[2] << endl;
+//     cout << "cv img: " << depth_img_pred.size() << endl;
   
     
     // Resize and linearly interpolate the predicted depth image so that it 
@@ -241,7 +245,8 @@ int main(int argc, char **argv) {
 //     cv::minMaxIdx(depth_img_gt, &min, &max);
 //     cv::Mat adjMap;
 //     cv::convertScaleAbs(depth_img_gt, adjMap, 255.0 / max);
-//     cv::imshow("window", adjMap); 
+//     cv::imshow("window", adjMap);
+//     cv::imshow("window", left_img);
 //     cv::waitKey(0);
 
   }
