@@ -101,6 +101,54 @@ bool Depth2Pointcloud::GeneratePointcloud(
   return true;
 }
 
+
+sensor_msgs::PointCloud2 Depth2Pointcloud::FilterPointCloudByDistance(
+                          const sensor_msgs::PointCloud2& pointcloud2,
+                          const float& min_distance,
+                          const float& max_distance){
+  sensor_msgs::PointCloud2 filtered_ptcloud = pointcloud2;
+  sensor_msgs::PointCloud2Iterator<float> out_x(filtered_ptcloud, "x");
+  sensor_msgs::PointCloud2Iterator<float> out_y(filtered_ptcloud, "y");
+  sensor_msgs::PointCloud2Iterator<float> out_z(filtered_ptcloud, "z");
+
+  for (sensor_msgs::PointCloud2Iterator<float> it(filtered_ptcloud, "x"); 
+       it != it.end(); 
+       ++it) {
+    float x = it[0];
+    float y = it[1];
+    float distance = sqrt(x * x + y * y);
+    if (distance < min_distance || distance > max_distance) {
+      it[0] = std::numeric_limits<float>::quiet_NaN();
+      it[1] = std::numeric_limits<float>::quiet_NaN();
+      it[2] = std::numeric_limits<float>::quiet_NaN();
+    }
+  }
+  
+  return filtered_ptcloud;
+}
+  
+sensor_msgs::PointCloud2 Depth2Pointcloud::FilterPointCloudByHeight(
+                          const sensor_msgs::PointCloud2& pointcloud2,
+                          const float& min_height,
+                          const float& max_height){
+  sensor_msgs::PointCloud2 filtered_ptcloud = pointcloud2;
+  sensor_msgs::PointCloud2Iterator<float> out_x(filtered_ptcloud, "x");
+  sensor_msgs::PointCloud2Iterator<float> out_y(filtered_ptcloud, "y");
+  sensor_msgs::PointCloud2Iterator<float> out_z(filtered_ptcloud, "z");
+
+  for (sensor_msgs::PointCloud2Iterator<float> it(filtered_ptcloud, "x"); 
+       it != it.end(); 
+       ++it) {
+    float z = it[2];
+    if (z < min_height || z > max_height) {
+      it[0] = std::numeric_limits<float>::quiet_NaN();
+      it[1] = std::numeric_limits<float>::quiet_NaN();
+      it[2] = std::numeric_limits<float>::quiet_NaN();
+    }
+  }
+  return filtered_ptcloud;
+}
+
 cv::Mat Depth2Pointcloud::GenerateObstacleImage(const cv::Mat &depth_img,
                                 const float &positive_height_thresh,
                                 const float &negative_height_thresh,

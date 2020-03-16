@@ -82,7 +82,7 @@ const float kDistanceErrThresh = 3.0; // meters
 // Objects that are further than max_range_ away from the agent will not be
 // used for training. A negative value implies that the max_range
 // constraint will not be enforced
-const float kMaxRange = 20.0; // meters
+const float kMaxRange = 30.0; // meters
 const cv::Size kImageSize(960, 600);
 
 // Checks if all required command line arguments have been set
@@ -151,6 +151,12 @@ int main(int argc, char **argv) {
       nh.advertise<sensor_msgs::PointCloud2>("/ivoa/gt_pointcloud", 1);
   ros::Publisher point_cloud_publisher_pred =
       nh.advertise<sensor_msgs::PointCloud2>("/ivoa/pred_pointcloud", 1);
+  ros::Publisher point_cloud_publisher_gt_filt_dist =
+      nh.advertise<sensor_msgs::PointCloud2>(
+          "/ivoa/gt_pointcloud_filtered_by_dist", 1);
+  ros::Publisher point_cloud_publisher_pred_filt_height =
+      nh.advertise<sensor_msgs::PointCloud2>(
+          "/ivoa/pred_pointcloud_filtered_by_height", 1);
   
   
   // Using only one instance of Depth2Pointcloud since the depth and left RGB
@@ -248,11 +254,23 @@ int main(int argc, char **argv) {
       if (depth_img_converter.GeneratePointcloud(depth_img_gt,
                                                 &pointcloud2)) {
         point_cloud_publisher_gt.publish(pointcloud2);
+      
+        sensor_msgs::PointCloud2 pointcloud2_filt =
+            depth_img_converter.FilterPointCloudByDistance(pointcloud2,
+                                                          0,
+                                                          kMaxRange);
+        point_cloud_publisher_gt_filt_dist.publish(pointcloud2_filt);
       }
       
       if (depth_img_converter.GeneratePointcloud(depth_img_pred,
                                                 &pointcloud2)) {
         point_cloud_publisher_pred.publish(pointcloud2);
+      
+        sensor_msgs::PointCloud2 pointcloud2_filt =
+              depth_img_converter.FilterPointCloudByHeight(pointcloud2,
+                                                  kPositiveHeightObsThresh,
+                                          std::numeric_limits<float>::max());
+        point_cloud_publisher_pred_filt_height.publish(pointcloud2_filt);
       }
     }
 

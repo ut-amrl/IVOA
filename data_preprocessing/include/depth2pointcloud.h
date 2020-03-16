@@ -42,6 +42,16 @@ class Depth2Pointcloud{
 
   bool GeneratePointcloud(const cv::Mat &depth_img,
                           sensor_msgs::PointCloud2* pointcloud2);
+  
+  sensor_msgs::PointCloud2 FilterPointCloudByDistance(
+                          const sensor_msgs::PointCloud2& pointcloud2,
+                          const float& min_distance,
+                          const float& max_distance);
+  
+  sensor_msgs::PointCloud2 FilterPointCloudByHeight(
+                          const sensor_msgs::PointCloud2& pointcloud2,
+                          const float& min_height,
+                          const float& max_height);
  
   
   // Given the depth image, the extrinsic calibration and the obstacle height
