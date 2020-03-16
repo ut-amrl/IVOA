@@ -63,6 +63,7 @@ class FailureDetectionDataset(Dataset):
         self.kinect_obs_existence = []
         self.patch_coord_left_x = []
         self.patch_coord_left_y = []
+        self.multi_class_labels = []
 
         # Check if the data loader should operate in segmentation mode
         # Segmentation mode allows for processing a specific part of a bagfile 

@@ -69,6 +69,7 @@ class FailureDetectionDataset(Dataset):
         self.kinect_obs_existence = []
         self.patch_coord_left_x = []
         self.patch_coord_left_y = []
+        self.multi_class_labels = []
         self.proc_img_meta_data = {}
         
         # Check if the data loader should operate in segmentation mode
