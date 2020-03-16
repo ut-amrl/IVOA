@@ -49,7 +49,8 @@ class Depth2Pointcloud{
   // obstacle (1) or traversable (0)
   cv::Mat GenerateObstacleImage(const cv::Mat &depth_img,
                                 const float &positive_height_thresh,
-                                const float &negative_height_thresh);
+                                const float &negative_height_thresh,
+                                cv::Mat *obstacle_distance);
 
   int LoadCameraCalibration(const std::string extrinsics_file);
 

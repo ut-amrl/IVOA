@@ -103,12 +103,14 @@ bool Depth2Pointcloud::GeneratePointcloud(
 
 cv::Mat Depth2Pointcloud::GenerateObstacleImage(const cv::Mat &depth_img,
                                 const float &positive_height_thresh,
-                                const float &negative_height_thresh) {
+                                const float &negative_height_thresh,
+                                cv::Mat *obstacle_distance) {
   if (!calibration_is_loaded_) {
     LOG(FATAL) << "Calibration files are not loaded.";
   }
 
   cv::Mat obstacle_img(depth_img.rows, depth_img.cols, CV_8U);
+  cv::Mat obstacle_dist(depth_img.rows, depth_img.cols, CV_32F);
   for (unsigned int y = 0; y < depth_img.rows; y++) {
     for (unsigned int x = 0; x < depth_img.cols; x++) {      
       float depth = depth_img.at<float>(y, x);
@@ -133,13 +135,16 @@ cv::Mat Depth2Pointcloud::GenerateObstacleImage(const cv::Mat &depth_img,
       if (pt_base(2) > fabs(positive_height_thresh) ||
           pt_base(2) < -fabs(negative_height_thresh)) {
         obstacle_img.at<uint8_t>(y, x) = 1;
+        obstacle_dist.at<float>(y,x) = sqrt(pt_base(0) * pt_base(0) 
+                                          + pt_base(1) * pt_base(1));
       } else {
         obstacle_img.at<uint8_t>(y, x) = 0;
+        obstacle_dist.at<float>(y,x) = -1;
       }
     }
   }
 
-
+  *obstacle_distance = obstacle_dist.clone();
   return obstacle_img;
 }
 

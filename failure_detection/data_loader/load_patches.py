@@ -35,6 +35,7 @@ class FailureDetectionDataset(Dataset):
                  loaded_image_channel=1, output_image_channel=1, 
                  transform=None, meta_data_dir = None,
                  extract_from_full_img = False,
+                 read_class_label_from_file = True,
                  patch_size = 100,
                  class_weights_coeff = [1.0, 1.0, 1.0, 1.0]):
         _PATCH_DATA_FILE = "image_patches_data.json"
@@ -63,6 +64,7 @@ class FailureDetectionDataset(Dataset):
         self.kinect_obs_existence = []
         self.patch_coord_left_x = []
         self.patch_coord_left_y = []
+        self.multi_class_labels = []
         
         # loaded image type of "mono" and output image type of "RGB" is not
         # supported
@@ -105,29 +107,45 @@ class FailureDetectionDataset(Dataset):
                                    patch_data_obj["patch_coordinate_left"]["x"])
             self.patch_coord_left_y = (self.patch_coord_left_y +
                                    patch_data_obj["patch_coordinate_left"]["y"])
-            
-            
+            if read_class_label_from_file:
+                self.multi_class_labels = (self.multi_class_labels +
+                                   patch_data_obj['multi_class_label'])
+
         self.jpp_obs_existence = np.asarray(self.jpp_obs_existence)
         self.kinect_obs_existence = np.asarray(self.kinect_obs_existence)
-        
+        if read_class_label_from_file:
+            self.multi_class_labels = np.asarray(self.multi_class_labels)
+
         # Prints dataset statistics:
         # True positive
-        true_pos = ((self.jpp_obs_existence == 
+        if read_class_label_from_file:
+            true_pos = self.multi_class_labels == 0
+        else:
+            true_pos = ((self.jpp_obs_existence ==
                             self.kinect_obs_existence) & 
                             self.kinect_obs_existence)
         
         # True negative
-        true_neg = ((self.jpp_obs_existence == 
+        if read_class_label_from_file:
+            true_neg = self.multi_class_labels == 1
+        else:
+            true_neg = ((self.jpp_obs_existence ==
                             self.kinect_obs_existence) & 
                             np.logical_not(self.kinect_obs_existence))
         
         # False positive
-        false_pos = ((self.jpp_obs_existence != 
+        if read_class_label_from_file:
+            false_pos = self.multi_class_labels == 2
+        else:
+            false_pos = ((self.jpp_obs_existence !=
                             self.kinect_obs_existence) & 
                             np.logical_not(self.kinect_obs_existence))
         
         # False negative
-        false_neg = ((self.jpp_obs_existence != 
+        if read_class_label_from_file:
+            false_neg = self.multi_class_labels == 3
+        else:
+            false_neg = ((self.jpp_obs_existence !=
                             self.kinect_obs_existence) & 
                             self.kinect_obs_existence)
         
@@ -187,7 +205,7 @@ class FailureDetectionDataset(Dataset):
         jpp_obs_existence = self.jpp_obs_existence[idx]
         kinect_obs_existence = self.kinect_obs_existence[idx]
         #binary_label = jpp_obs_existence == kinect_obs_existence
-        if (jpp_obs_existence == kinect_obs_existence):
+        if jpp_obs_existence == kinect_obs_existence:
             binary_label = 1
         else:
             binary_label = 0

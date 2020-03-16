@@ -73,6 +73,16 @@ const bool kVisualization = false;
 const float kPatchSize = 100;
 const float kPatchStride = 30;
 const double kObstacleRatioThresh = 0.05;
+
+// If the predicted distance to obstacle is off from the ground truth by
+// more than kDistanceErrThresh, it will be labeled as either FP 
+// (if pred_dist < gt_dist) or FN (if pred_dist > gt_dist)
+const float kDistanceErrThresh = 3.0; // meters
+
+// Objects that are further than max_range_ away from the agent will not be
+// used for training. A negative value implies that the max_range
+// constraint will not be enforced
+const float kMaxRange = 20.0; // meters
 const cv::Size kImageSize(960, 600);
 
 // Checks if all required command line arguments have been set
@@ -161,7 +171,9 @@ int main(int argc, char **argv) {
   Dataset dataset(kPatchSize,
                   FLAGS_session_num,
                   FLAGS_output_dataset_dir,
-                  kObstacleRatioThresh);
+                  kObstacleRatioThresh,
+                  kDistanceErrThresh,
+                  kMaxRange);
 
   vector<Point> query_points = GenerateQueryPoints(kImageSize,
                                                    kPatchSize,
@@ -211,17 +223,24 @@ int main(int argc, char **argv) {
     // is the same size as the ground truth depth image
     cv::resize(depth_img_pred,depth_img_pred,depth_img_gt.size());
     
-
+    cv::Mat obstacle_dist_gt;
     cv::Mat obstacle_img_gt = depth_img_converter.GenerateObstacleImage(
                                               depth_img_gt,
                                               kPositiveHeightObsThresh,
-                                              kNegativeHeightObsThresh);
+                                              kNegativeHeightObsThresh,
+                                              &obstacle_dist_gt);
+    cv::Mat obstacle_dist_pred;
     cv::Mat obstacle_img_pred = depth_img_converter.GenerateObstacleImage(
                                               depth_img_pred,
                                               kPositiveHeightObsThresh,
-                                              kNegativeHeightObsThresh);
+                                              kNegativeHeightObsThresh,
+                                              &obstacle_dist_pred);
 
-    dataset.LabelData(obstacle_img_gt, obstacle_img_pred, prefix);
+    dataset.LabelData(obstacle_img_gt,
+                      obstacle_dist_gt,
+                      obstacle_img_pred, 
+                      obstacle_dist_pred,
+                      prefix);
     dataset.SaveImages(left_img);
     
     if (kVisualization) {
@@ -248,6 +267,8 @@ int main(int argc, char **argv) {
 //     cv::imshow("window", adjMap);
 //     cv::imshow("window", left_img);
 //     cv::waitKey(0);
+
+
 
   }
   

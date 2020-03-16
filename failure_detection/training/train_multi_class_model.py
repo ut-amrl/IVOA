@@ -150,7 +150,7 @@ if __name__=="__main__":
                   "alex_multi_7_color_noMedFilt_best_model.pt")
    
   
-    EPOCH_NUM = 7
+    EPOCH_NUM = 30
     SNAPSHOT_FREQ = 1 # take a snapshot once every 2 epochs
     #BATCH_SIZE = 400 # 
     #NUM_WORKERS = 12 # Allocate 4 GPUs and 6 Cpus
@@ -160,15 +160,15 @@ if __name__=="__main__":
     #NUM_WORKERS = 24 # Allocate 8 GPUs and 12 Cpus
     #NUM_WORKERS = 2 # Allocate 8 GPUs and 12 Cpus
     
-    BATCH_SIZE = 1 # 
-    NUM_WORKERS = 1 #  
+    BATCH_SIZE = 500 #
+    NUM_WORKERS = 4 #
     
     train_set_dict = {
-      "train_1":[0]
+      "train_1":[1, 3, 4]
       }
       
     valid_set_dict = {
-      "valid_1":[0]
+      "valid_1":[1]
     }
    
     

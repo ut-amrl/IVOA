@@ -13,3 +13,9 @@ source set_env.bash
 mkdir build && cd build
 cmake .. && make
 ```
+
+## Run
+```bash
+cd scripts
+./run_airsim_data_processing.bash
+```

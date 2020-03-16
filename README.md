@@ -44,7 +44,7 @@ Modify the script `failure_detection/testing/run_scripts/exec_test_multi_class.b
 ```
 
   **NOTE:** This script runs all patches through the model and saves the resultant performance
-  statistics to file. However, it does NOT visualize the output of the network. It also does not run any post processing or smoothing on the output results.
+  statistics to file. However, it does NOT visualize the output of the network. It also does not run any post processing or smoothing on the output results either.
 
 
 2. Visualize (Raw Output with No Post Processing):
@@ -53,6 +53,6 @@ Modify the script `failure_detection/testing/run_scripts/exec_test_multi_class.b
 
 3. Generate Output with Post Processing
 
-	1. Run `failure_detection/testing/run_evaluation.py`: This is the same as `test_multi_class_model.py` but as well as saving the raw IVOA predictions on the image patches, it also saves 4 heatmaps per input image, each representing a smooth class probability for one of the 4 classes of TP, TN, FP, FN as the output of the introspection model.
+	Run `failure_detection/testing/run_evaluation.py`: This is the same as `test_multi_class_model.py` but as well as saving the raw IVOA predictions on the image patches, it also saves 4 heatmaps per input image, each representing a smooth class probability for one of the 4 classes of TP, TN, FP, FN as the output of the introspection model.
 
-	2. Run `failure_detection/testing/run_pp_evaluation.py`: This script loads the saved heatmaps and raw prediction in step 3.1 and generates the final output of IVOA for each patch by running a post processing procedure.
+	<!-- 2. Run `failure_detection/testing/run_pp_evaluation.py`: This script loads the saved heatmaps and raw prediction in step 3.1 and generates the final output of IVOA for each patch by running a post processing procedure. -->

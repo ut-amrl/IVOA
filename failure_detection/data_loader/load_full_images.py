@@ -35,6 +35,7 @@ class FailureDetectionDataset(Dataset):
     def __init__(self, root_dir, bagfile_list,
                  loaded_image_channel=1, output_image_channel=1,
                  transform=None, meta_data_dir = None,
+                 read_class_label_from_file=True,
                  load_patch_info=False,
                  segment_id = None, segment_length=None,
                  calculate_total_distance=False):
@@ -124,33 +125,50 @@ class FailureDetectionDataset(Dataset):
                                   patch_data_obj["patch_coordinate_left"]["x"])
                 self.patch_coord_left_y = (self.patch_coord_left_y +
                                   patch_data_obj["patch_coordinate_left"]["y"])
+                if read_class_label_from_file:
+                    self.multi_class_labels = (self.multi_class_labels +
+                                patch_data_obj['multi_class_label'])
                 patch_id_offset += len(patch_data_obj['jpp_obs_existence'])
            
         
         if self.load_patch_info:
             self.jpp_obs_existence = np.asarray(self.jpp_obs_existence)
             self.kinect_obs_existence = np.asarray(self.kinect_obs_existence)
+            if read_class_label_from_file:
+                self.multi_class_labels = np.asarray(self.multi_class_labels)
             
             # Prints dataset statistics:
             # True positive
-            true_pos = ((self.jpp_obs_existence == 
-                                self.kinect_obs_existence) & 
-                                self.kinect_obs_existence)
-            
+            if read_class_label_from_file:
+                true_pos = self.multi_class_labels == 0
+            else:
+                true_pos = ((self.jpp_obs_existence ==
+                             self.kinect_obs_existence) &
+                            self.kinect_obs_existence)
+
             # True negative
-            true_neg = ((self.jpp_obs_existence == 
-                                self.kinect_obs_existence) & 
-                                np.logical_not(self.kinect_obs_existence))
-            
+            if read_class_label_from_file:
+                true_neg = self.multi_class_labels == 1
+            else:
+                true_neg = ((self.jpp_obs_existence ==
+                             self.kinect_obs_existence) &
+                            np.logical_not(self.kinect_obs_existence))
+
             # False positive
-            false_pos = ((self.jpp_obs_existence != 
-                                self.kinect_obs_existence) & 
-                                np.logical_not(self.kinect_obs_existence))
-            
+            if read_class_label_from_file:
+                false_pos = self.multi_class_labels == 2
+            else:
+                false_pos = ((self.jpp_obs_existence !=
+                              self.kinect_obs_existence) &
+                             np.logical_not(self.kinect_obs_existence))
+
             # False negative
-            false_neg = ((self.jpp_obs_existence != 
-                                self.kinect_obs_existence) & 
-                                self.kinect_obs_existence)
+            if read_class_label_from_file:
+                false_neg = self.multi_class_labels == 3
+            else:
+                false_neg = ((self.jpp_obs_existence !=
+                              self.kinect_obs_existence) &
+                             self.kinect_obs_existence)
             
             print('True Pos: ', true_pos.sum(), ', ', true_pos.sum() / 
                             true_pos.size)
