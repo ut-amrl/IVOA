@@ -75,6 +75,16 @@ bool Dataset::LabelData(const cv::Mat& gt_obstacle_img,
                      &pred_obstacle_distance_,
                      &pred_valid_pts_);
   
+  // Populate valid patches flags given gt_valid_pts_ and pred_valid_pts_
+  int valid_pts_count = 0;
+  valid_pts_.clear();
+  for (size_t i = 0; i < gt_valid_pts_.size(); i++) {
+    valid_pts_.push_back(gt_valid_pts_[i] && pred_valid_pts_[i]);
+    if (valid_pts_.back()) {
+      valid_pts_count++;
+    }
+  }
+  
   patch_coord_ = query_points_;
  
   // Labels the patch as either TP (0), TN (1), FP (2), and FN (3)
@@ -85,7 +95,7 @@ bool Dataset::LabelData(const cv::Mat& gt_obstacle_img,
   UpdateDataset();
   
   img_count_++;
-  img_patches_count_+=gt_labels_.size();
+  img_patches_count_+= valid_pts_count;
   return true;
 }
 
@@ -199,12 +209,14 @@ void Dataset::AppendToJsonFullImNames() {
 
   Json::Value patch_names_obj;
   Json::Value patch_ind_obj;
+  int patch_idx = 0;
   for (size_t i = 0; i < patch_l_names_.size(); i++) {
     if (!gt_valid_pts_[i] || !pred_valid_pts_[i]) {
       continue;
     }
     patch_names_obj["names"].append(patch_l_names_[i]);
-    patch_ind_obj["indices"].append((int)(img_patches_count_ + i));
+    patch_ind_obj["indices"].append((int)(img_patches_count_) + patch_idx);
+    patch_idx++;
   }
   json_val_full_img_names_["corr_img_patch_names"].append(patch_names_obj);
   json_val_full_img_names_["corr_img_patch_indices"].append(patch_ind_obj);

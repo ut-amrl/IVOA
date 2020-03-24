@@ -37,7 +37,7 @@ from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import f1_score
 from matplotlib.backends.backend_pdf import PdfPages
-from test_obstacle_detection_model import plot_confusion_matrix
+from test_multi_class_model import plot_confusion_matrix
 
 def load_result_files(file_paths):
     all_results = []
@@ -54,10 +54,15 @@ def merge_results(result_dics):
     classes = []
    
     classes = result_dics[0]["classes"]
-    has_uncertainty = bool(result_dics[0]["class_uncertainty"])
-    
+
+    has_uncertainty = False
+    if bool(result_dics[0]["class_uncertainty"]):
+        if len(result_dics[0]["class_uncertainty"]) > 0:
+            has_uncertainty = True
+
+
     for curr_class in classes:
-          total_class_prob[curr_class] = []
+        total_class_prob[curr_class] = []
           
     if has_uncertainty:
         for curr_class in classes:
@@ -101,10 +106,18 @@ def convert_results_to_np(results_dict):
     class_num = len(classes)
     class_prob = np.zeros((data_num, class_num))
     class_uncertainty = np.zeros((data_num, class_num))
-    
+
+    has_uncertainty = False
+    if bool(results_dict["class_uncertainty"]):
+        if len(results_dict["class_uncertainty"]) > 0:
+            has_uncertainty = True
+
     for i in range(class_num):
         class_prob[:,i] = results_dict["class_prob"][classes[i]]
-        class_uncertainty[:,i] = results_dict["class_uncertainty"][classes[i]]
+
+        if has_uncertainty:
+            class_uncertainty[:,i] = (
+                        results_dict["class_uncertainty"][classes[i]])
     
     results_np = {"classes": classes,
                   "ground_truth": np.array(results_dict["ground_truth"]),

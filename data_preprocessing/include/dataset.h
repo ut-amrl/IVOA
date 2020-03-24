@@ -180,8 +180,13 @@ private:
   std::vector<bool> pred_valid_pts_;
   std::vector<float> pred_obstacle_distance_;
   
-  // Coordinate of the extracted and pruned patches
+  // Coordinate of the extracted patches
   std::vector<cv::Point> patch_coord_;
+  
+  // Flags indicating valid patches (those that are inside the image bounds
+  // and also comply with the maximum range constraint)
+  std::vector<bool> valid_pts_;
+  
   
   // The name for the latest image
   std::string left_img_name_;
