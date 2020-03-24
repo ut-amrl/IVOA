@@ -37,7 +37,6 @@ from skimage import io, transform
 from torchvision import transforms, utils
 from torchvision.utils import make_grid
 import matplotlib.pyplot as plt
-from ggplot import *
 from math import floor
 from collections import OrderedDict
 from data_loader.load_patches import FailureDetectionDataset
@@ -115,13 +114,9 @@ if __name__ == "__main__":
       VIS_GRID_ROW = 5
       VIS_GRID_COL = 10
       
-      PATCH_SIZE = 200
+      PATCH_SIZE = 100
       
-      bagfile_list = [24, 26, 29, 30]  # newIndoor
-      #bagfile_list = [4, 6, 9, 24, 26, 29, 30] # original + newIndoor
-      #bagfile_list = [4, 6, 9, 24, 26, 29, 30,
-                      #74, 77, 80, 83, 84, 87, 89, 91, 93, 95, 96] # original + 
-                                                            ## newIndoor + out4
+      bagfile_list = [1]
       
       device = "cpu"
       
