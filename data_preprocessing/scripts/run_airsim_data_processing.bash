@@ -3,7 +3,7 @@
 
 export ROS_PACKAGE_PATH=`pwd`/..:$ROS_PACKAGE_PATH
 
-if [ -z "$1" ] || [ -z "$2" ] [ -z "$3" ]
+if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ]
 then
   echo "USAGE: $0 SOURCE_DIR OUT_DIR SESSION_NUM"
 fi
