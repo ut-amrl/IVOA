@@ -1,22 +1,19 @@
 #!/bin/bash
 
 python ../extract_embedding.py \
- --data_path "/hdd/datasets"\
-"/introspective_failure_detection_noMedFilt_colored" \
- --meta_data_path  "/hdd/datasets/"\
-"/introspective_failure_detection_noMedFilt_colored"  \
+ --data_path "/media/ssd2/datasets/AirSim_IVOA/ivoa_dataset_testing2" \
+ --meta_data_path  "/media/ssd2/datasets/AirSim_IVOA/ivoa_dataset_testing2"  \
  --model_dir \
-"/hdd/nn_models/failure_detection/"\
-"alex_multi_7_color_noMedFilt_best_model.pt" \
---save_dir "/hdd/results/introspective_failure_detection/"\
-"alex_multi_7_color_noMedFilt/embeddings/" \
---result_file_name  alex_multi_7  \
+"/media/ssd2/results/IVOA/tmp_testing/"\
+"monodepth_ivoa_last_model.pt" \
+--save_dir "/media/ssd2/results/IVOA/initial_results/" \
+--result_file_name  "airsim_ivoa"  \
 --use_multi_gpu_model false  \
 --use_gpu true  \
 --use_color_images true  \
 --calc_uncertainty false  \
 --online_patch_extraction true  \
 --patch_crop_size 100 \
---test_set newIndoor
+--test_set "test1"
 
 

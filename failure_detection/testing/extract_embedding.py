@@ -225,7 +225,7 @@ if __name__=="__main__":
     #NUM_WORKERS = 4 # Allocate 4 GPUs and 6 Cpus
     
     test_set_dict = {
-      "test_1"[0]:
+      "test1":[1]
     }
    
     

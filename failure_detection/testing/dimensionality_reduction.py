@@ -49,30 +49,26 @@ from analyze_results import *
 
 
 if __name__ == "__main__":
-    source_dir = ("/mnt/nfs/work1/joydeepb/srabiee/results/"
-                  "introspective_failure_detection/"
-                  "alex_multi_7_color_noMedFilt")
-    #target_dir = source_dir + '/embeddings/'
-    target_dir = source_dir + '/embeddings2048/'
-    
-    
+    # Base directory used for loading saved results and also setting the
+    # target path
+    base_dir = ("/media/ssd2/results/IVOA/initial_results/")
 
+    # Target directory for saving the results
+    target_dir = base_dir + '/embeddings/'
+    # target_dir = source_dir + '/embeddings2048/'
+
+    # **** Saved Output of extract_embedding.py to be loaded:
+    files_of_interest_embeddings = [ base_dir + "/embeddings/" +
+        "airsim_ivoa_test1_patch_embeddings.csv"]
+
+    # **** Saved Output of test_multi_class.py to be loaded:
+    files_of_interest_prediction = [ base_dir +
+                        "airsim_ivoa_raw_test1_data.json"]
     
-    # **** 2048 embedding size:
-    files_of_interes_patch_info = [ source_dir + "/" + 
-        "alex_multi_7__withConf_result_newIndoor_patch_info.json"]
-    files_of_interest_embeddings = [ source_dir + "/" +
-        "alex_multi_7_2048embd_newIndoor_patch_embeddings.csv"]
-    files_of_interest_prediction = [ source_dir + "/" + 
-                        "alex_multi_7__withConf_result_newIndoor_data.json"]
-    
-   
+    # Prefix for the name of the output files of this script
     result_file_name = (
-      "alex_multi_7_newIndoor_noMedFilt_PCA20_thresh03_kmeans2_2048")
+      "airsim_ivoa_PCA20_thresh03_kmeans2")
 
-    
-
-        
     #********************
     #### Parameters
     UNCERTAINTY_THRESH = 0.03

@@ -34,6 +34,7 @@ Modify the script `failure_detection/training/run_scripts/exec_train_multi_class
 ```
 
 #### Test IVOA
+<!-- #### <a name="test_ivoa_sec"></a> Test IVOA -->
 1. Generate Raw Output with No Post Processing:
 
  Modify the script `failure_detection/testing/test_multi_class_model.py` and set the dictionary `valid_set_dict` to the session numbers for your test dataset (train, test, and validation datasets will all be loaded from the same dataset directory and the session id determines which parts of the dataset should be used for train, test, and validation).
@@ -56,3 +57,27 @@ Modify the script `failure_detection/testing/run_scripts/exec_test_multi_class.b
 	Run `failure_detection/testing/run_evaluation.py`: This is the same as `test_multi_class_model.py` but as well as saving the raw IVOA predictions on the image patches, it also saves 4 heatmaps per input image, each representing a smooth class probability for one of the 4 classes of TP, TN, FP, FN as the output of the introspection model.
 
 	<!-- 2. Run `failure_detection/testing/run_pp_evaluation.py`: This script loads the saved heatmaps and raw prediction in step 3.1 and generates the final output of IVOA for each patch by running a post processing procedure. -->
+
+#### Extract and Cluster Failure Mode Embeddings
+In order to extract and cluster the embeddings of different failure modes. You
+should run the following scripts one after another. Each script processes the
+the output of the previous one in the list.
+
+1. Run the script `failure_detection/testing/run_scripts/exec_test_multi_class.bash` after modifying the arguments according to your
+dataset as explained in the [test](#markdown-header-test-ivoa) section.
+
+1. Modify the script `failure_detection/testing/extract_embedding.py` and set the dictionary `test_set_dict` to the session numbers for your test dataset. Run `failure_detection/testing/run_scripts/exec_extract_embedding.bash` after
+modifying the command line arguments according to your dataset.
+
+1. Run `failure_detection/testing/dimensionality_reduction.py`. This script
+clusters the embeddings and also performs dimensionality reduction on them.
+Before running the
+script, set the path to the embeddings extracted by `extract_embedding.py` and
+the prediction results saved by `test_multi_class_model.py`. You can also
+modify the clustering method of choice and its parameters.
+
+1. Run `failure_detection/testing/error_clustering.py`. This script loads all
+the clustering and dimensionality reduction results that were saved in the previous
+step and visualizes random samples from each cluster. Before running the script,
+you should set the path to the outputs of `extract_embedding.py`
+and also the `sessions_list` at the top of `main()`.

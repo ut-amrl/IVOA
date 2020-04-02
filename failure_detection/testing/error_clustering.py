@@ -63,43 +63,27 @@ def show_img(img):
 
 
 if __name__ == "__main__":
-  
-      LABEL_COLOR_MAP = {0 : 'b',
-                         1 : 'g',
-                         2 : 'r',
-                         3 : 'cyan',
-                         4 : 'magenta',
-                         5 : 'yellow',
-                         6 : 'black'}
-  
-      source_dir = ("/hdd/results/introspective_failure_detection/"
-                  "alex_multi_7_color_noMedFilt")
-    
-      target_dir = source_dir + '/embeddings/'
-      
-      files_of_interes_patch_info = [ source_dir + "/" + 
-        "alex_multi_7__withConf_result_newIndoor_patch_info.json"]
 
+      #********************
+      # Modify the following paths
+      # ********************
 
-      #****************************
-      #********* Subsampled Mean MeanShift
-      tsne_res_path = (source_dir + '/embeddings/' + 
+      # Path to the saved results of the dimensionality_reduction.py script
+      base_dir = ("/media/ssd2/results/IVOA/initial_results/embeddings/")
+      tsne_res_path = (base_dir +
+                       'airsim_ivoa_PCA20_thresh03_kmeans2_tsne_res.csv')
+      tsne_patch_indices_path = (base_dir +
+                       'airsim_ivoa_PCA20_thresh03_kmeans2_patch_indices.csv')
+      clustering_res_path = (base_dir +
+                       'airsim_ivoa_PCA20_thresh03_kmeans2_kmeans.pkl')
       
-'alex_multi_7_newIndoor_noMedFilt_PCA20_thresh03_bwp01_subp3_tsne_res.csv')
-      tsne_patch_indices_path = (source_dir + '/embeddings/' + 
- 
-'alex_multi_7_newIndoor_noMedFilt_PCA20_thresh03_bwp01_subp3_patch_indices.csv'
-)
-      clustering_res_path = (source_dir + '/embeddings/' + 
-     
-'alex_multi_7_newIndoor_noMedFilt_PCA20_thresh03_bwp01_subp3_meanshift.pkl')
-      
-      
-      
-      
-      dataset_path = "/hdd/datasets"\
-                    "/introspective_failure_detection_noMedFilt_colored" \
-      
+
+      # Path to IVOA dataset
+      dataset_path = "/media/ssd2/datasets/AirSim_IVOA/ivoa_dataset_testing2"
+
+      # Set the list of sessions the above results are from.
+      sessions_list = [1]
+
       #----------------------------------
       # Parameters
       
@@ -115,11 +99,18 @@ if __name__ == "__main__":
       VIS_GRID_COL = 10
       
       PATCH_SIZE = 100
-      
-      bagfile_list = [1]
-      
+
       device = "cpu"
-      
+
+      # Colors assigned to cluster numbers
+      LABEL_COLOR_MAP = {0: 'b',
+                         1: 'g',
+                         2: 'r',
+                         3: 'cyan',
+                         4: 'magenta',
+                         5: 'yellow',
+                         6: 'black'}
+
       #-----------------------------------
       # Initializations
       
@@ -131,7 +122,7 @@ if __name__ == "__main__":
       
       # Initialize the dataset for image extraction and visualization
       test_dataset = FailureDetectionDataset(dataset_path, 
-                            bagfile_list,
+                            sessions_list,
                             3,
                             3,
                             data_transform,
