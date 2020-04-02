@@ -56,6 +56,7 @@ public:
           std::string dataset_dir,
           double obstacle_ratio_thresh,
           float distance_err_thresh,
+          float rel_distance_err_thresh,
           float max_range);
   ~Dataset() = default;
   
@@ -151,10 +152,12 @@ private:
   // obstacle the patch will be labeled as obstacle
   double obstacle_ratio_thresh_;
   
-  // If the predicted distance to obstacle is off from the ground truth by
-  // more than distance_err_thresh_, it will be considered as either FP 
-  // (if pred_dist < gt_dist) or FN (if pred_dist > gt_dist)
+// If the predicted distance to obstacle is off from the ground truth by
+// more than max(distance_err_thresh_, rel_distance_err_thresh_ *TrueDistance), 
+// it will be labeled as either FP (if pred_dist < gt_dist) or 
+// FN (if pred_dist > gt_dist)
   float distance_err_thresh_;
+  float rel_distance_err_thresh_;
   
   // Objects that are further than max_range_ away from the agent will not be
   // used for training. A negative value implies that the max_range

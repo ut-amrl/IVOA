@@ -35,12 +35,14 @@ Dataset::Dataset(float patch_size,
                  std::string dataset_dir,
                  double obstacle_ratio_thresh,
                  float distance_err_thresh,
+                 float rel_distance_err_thresh,
                  float max_range):
         patch_size_(patch_size),
         session_num_(session_num),
         dataset_dir_(dataset_dir),
         obstacle_ratio_thresh_(obstacle_ratio_thresh),
         distance_err_thresh_ (distance_err_thresh),
+        rel_distance_err_thresh_(rel_distance_err_thresh),
         max_range_(max_range){
   std::stringstream ss;
   ss << std::setfill('0') << std::setw(5) << session_num_;
@@ -308,13 +310,16 @@ bool Dataset::LabelPatch(const cv::Mat& obstacle_img,
  
   // If there is a required max range, the patch will be flagged as invalid
   // for training if the closest point in the patch (regardless of the point
-  // being an obstacle or not) is farther than max_range
+  // being an obstacle or not) is farther than max_range or if the patch is 
+  // labeled as an obstacle, it will be flagged as invalid when 
+  // dist_to_obstacle is larger than max_range
   if (max_range >= 0) {
     // The minimum distance to any 3D point associated with the pixels in the 
     // patch (the point does not need to be an obstacle)
     float min_dist = GetMinValueInMat(patch_dist, 
                             cv::Mat::ones(patch_size, patch_size,CV_8U));
-    if (min_dist > max_range) {
+    if (min_dist > max_range || 
+        (*label && *patch_obs_dist > max_range)) {
       return false;
     }
   }
@@ -351,29 +356,33 @@ void Dataset::ExtractPatchLabels(const cv::Mat& obstacle_img,
 }
 
 void Dataset::GenerateMultiClassLabels() {
+  // TODO: For the case when an obstacle is in the form of a hole 
+  // (z_obs < 0), you do not care about the accuracy of the depth estimate
+  // but only about the existence of one
   multi_class_labels_.clear();
   for (size_t i = 0; i < patch_coord_.size(); i++){
     if ((gt_labels_[i] == pred_labels_[i]) && gt_labels_[i]) {
       float obst_dist_err = gt_obstacle_distance_[i] - 
                             pred_obstacle_distance_[i];
-      if (obst_dist_err > distance_err_thresh_ && 
-          gt_obstacle_distance_[i] < max_range_) {
+      float rel_err_thresh = rel_distance_err_thresh_ * 
+                             gt_obstacle_distance_[i]; 
+      if (obst_dist_err > std::max(distance_err_thresh_, rel_err_thresh)) {
         // False Positive
-        multi_class_labels_.push_back(FP);;
-      } else if (obst_dist_err < -distance_err_thresh_ &&
-                  gt_obstacle_distance_[i] < max_range_) {
+        multi_class_labels_.push_back(FP);
+      } else if (
+           obst_dist_err < -std::max(distance_err_thresh_, rel_err_thresh)) {
         // Flase Negative
-        multi_class_labels_.push_back(FN);;
+        multi_class_labels_.push_back(FN);
       } else {
         // True Positive
-        multi_class_labels_.push_back(TP);;
+        multi_class_labels_.push_back(TP);
       }
     } else if ((gt_labels_[i] != pred_labels_[i]) && gt_labels_[i]) {
       // False negative
-      multi_class_labels_.push_back(FN);;
+      multi_class_labels_.push_back(FN);
     } else if ((gt_labels_[i] == pred_labels_[i]) && !gt_labels_[i]) {
       // True negative
-      multi_class_labels_.push_back(TN);;
+      multi_class_labels_.push_back(TN);
     } else {
       // False positive
       multi_class_labels_.push_back(FP);
@@ -459,12 +468,13 @@ cv::Mat Dataset::AnnotateImageComprehensive(const cv::Mat &image) {
     if ((gt_labels_[i] == pred_labels_[i]) && gt_labels_[i]) {
       float obst_dist_err = gt_obstacle_distance_[i] - 
                             pred_obstacle_distance_[i];
-      if (obst_dist_err > distance_err_thresh_ && 
-          gt_obstacle_distance_[i] < max_range_) {
+      float rel_err_thresh = rel_distance_err_thresh_ * 
+                             gt_obstacle_distance_[i]; 
+      if (obst_dist_err > std::max(distance_err_thresh_, rel_err_thresh)) {
         // False Positive
         label_color = orange;
-      } else if (obst_dist_err < -distance_err_thresh_ &&
-                 gt_obstacle_distance_[i] < max_range_) {
+      } else if (
+         obst_dist_err < -std::max(distance_err_thresh_, rel_err_thresh)) {
         // Flase Negative
         label_color = red;
       } else {

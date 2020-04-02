@@ -70,19 +70,22 @@ DECLARE_bool(helpshort);
 const float kPositiveHeightObsThresh = 0.3; // meters
 const float kNegativeHeightObsThresh = 0.3; // meters
 const bool kVisualization = false;
-const float kPatchSize = 100;
+const float kPatchSize = 50;
 const float kPatchStride = 30;
+const float kMarginWidth = 5;
 const double kObstacleRatioThresh = 0.05;
 
 // If the predicted distance to obstacle is off from the ground truth by
-// more than kDistanceErrThresh, it will be labeled as either FP 
-// (if pred_dist < gt_dist) or FN (if pred_dist > gt_dist)
-const float kDistanceErrThresh = 3.0; // meters
+// more than max(kDistanceErrThresh, kRelativeErrThresh * TrueDistance), it 
+// will be labeled as either FP (if pred_dist < gt_dist) or FN (if pred_dist > 
+// gt_dist)
+const float kDistanceErrThresh = 1.0; // meters
+const float kRelativeDistanceErrThresh = 0.1;
 
 // Objects that are further than max_range_ away from the agent will not be
 // used for training. A negative value implies that the max_range
 // constraint will not be enforced
-const float kMaxRange = 30.0; // meters
+const float kMaxRange = 50.0; // meters
 const cv::Size kImageSize(960, 600);
 
 // Checks if all required command line arguments have been set
@@ -104,15 +107,18 @@ void CheckCommandLineArgs(char** argv) {
 
 vector<Point> GenerateQueryPoints(const cv::Size img_size,
                                   const float &patch_size,
-                                  const float &stride) {
+                                  const float &stride,
+                                  const float &margin_width) {
   vector<Point> query_points;
   float x = 0;
   float y = 0;
  
   
-  for (x = patch_size / 2 + 1; x + patch_size/2 < img_size.width; x+=stride) {
-    for (y = patch_size / 2 + 1; 
-         y + patch_size/2 < img_size.height; 
+  for (x = patch_size / 2 + margin_width; 
+       x + patch_size/2 < (img_size.width - margin_width); 
+       x+=stride) {
+    for (y = patch_size / 2 + margin_width; 
+         y + patch_size/2 < (img_size.height - margin_width); 
          y+=stride) {
       query_points.push_back(Point(x, y));
     }
@@ -179,14 +185,17 @@ int main(int argc, char **argv) {
                   FLAGS_output_dataset_dir,
                   kObstacleRatioThresh,
                   kDistanceErrThresh,
+                  kRelativeDistanceErrThresh,
                   kMaxRange);
 
   vector<Point> query_points = GenerateQueryPoints(kImageSize,
                                                    kPatchSize,
-                                                   kPatchStride);
+                                                   kPatchStride,
+                                                   kMarginWidth);
 
   dataset.LoadQueryPoints(query_points);
   
+  int count = 0;
   for (const int &i : filename_prefixes) {
     
     stringstream ss;
@@ -274,8 +283,11 @@ int main(int argc, char **argv) {
       }
     }
 
-    
-//     cout << "img num: " << i << endl;
+//     count++;
+//     if (count > 30) {
+//       break;
+//     }
+
 //       // Visualize and verify the depth image
 //     double min;
 //     double max;
@@ -283,8 +295,13 @@ int main(int argc, char **argv) {
 //     cv::Mat adjMap;
 //     cv::convertScaleAbs(depth_img_gt, adjMap, 255.0 / max);
 //     cv::imshow("window", adjMap);
-//     cv::imshow("window", left_img);
-//     cv::waitKey(0);
+
+    if (kVisualization) {
+      count++;
+      cout << "img num: " << i << endl;
+      cv::imshow("window", left_img);
+      cv::waitKey(0);
+    }
 
 
 
