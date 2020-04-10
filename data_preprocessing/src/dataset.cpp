@@ -503,7 +503,40 @@ cv::Mat Dataset::AnnotateImageComprehensive(const cv::Mat &image) {
                radius_pred, 
                pred_color, 
                -1, 8, 0);
+   
   }
+  
+  // Legend
+  cv::Mat roi = annotated_img(cv::Rect(0, 550, 200, 50));
+  cv::Mat color(roi.size(), CV_8UC4, cv::Scalar(125, 125, 125,255)); 
+  double alpha = 0.7;
+  cv::addWeighted(color, alpha, roi, 1.0 - alpha , 0.0, roi); 
+  
+  int baseline = 0;
+  double font_scale = 0.8;
+  float y_offset = 550 + 5;
+  float x_offset = 50;
+  float x_start = 20;
+  
+  
+  vector<string> text = {"TP", "TN", "FP", "FN"};
+  vector<cv::Scalar> text_color = {green, blue, orange, red};
+  
+  for (size_t i = 0; i < text.size(); i++) {
+    cv::Size txt_size = getTextSize(text[i], 
+                            cv::FONT_HERSHEY_SIMPLEX, font_scale, 1, &baseline);
+    
+    cv::Point2f cursor((i) *x_offset + x_start,  y_offset);
+    cursor.x -= txt_size.width/2;
+    cursor.y += txt_size.height + baseline;
+    putText(annotated_img, 
+            text[i], 
+            cursor, 
+              cv::FONT_HERSHEY_SIMPLEX, font_scale, text_color[i], 3);
+      
+  }
+  
+
   
   return annotated_img;
 }
