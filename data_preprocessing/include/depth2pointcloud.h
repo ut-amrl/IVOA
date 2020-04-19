@@ -52,6 +52,13 @@ class Depth2Pointcloud{
                           const sensor_msgs::PointCloud2& pointcloud2,
                           const float& min_height,
                           const float& max_height);
+  
+  sensor_msgs::PointCloud2 FilterPointCloudByHeightAndDistance(
+                          const sensor_msgs::PointCloud2& pointcloud2,
+                          const float& min_height,
+                          const float& max_height,
+                          const float& min_dist,
+                          const float& max_dist);
  
   
   // Given the depth image, the extrinsic calibration and the obstacle height
