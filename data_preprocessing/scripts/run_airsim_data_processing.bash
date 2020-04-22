@@ -3,16 +3,16 @@
 
 export ROS_PACKAGE_PATH=`pwd`/..:$ROS_PACKAGE_PATH
 
-if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ]
+if [ -z "$1" ] || [ -z "$2" ]
 then
-  echo "USAGE: $0 SOURCE_DIR OUT_DIR SESSION_NUM"
+  echo "USAGE: $0 SOURCE_DIR SESSION_NUM"
 fi
 
 CAM_EXTRINSICS_PATH="../util/Camera_Extrinsics.yaml"
 
 SOURCE_DIR=$1
-OUTPUT_DATASET_DIR=$2
-SESSIONS=$3
+OUTPUT_DATASET_DIR="/data/CAML/IVOA_CRA/"
+SESSIONS=$2
 
 for session in $SESSIONS; do
   printf -v SESSION_NUM_STR '%05d' "$session"

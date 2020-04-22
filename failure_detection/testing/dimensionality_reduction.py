@@ -48,23 +48,15 @@ from matplotlib.backends.backend_pdf import PdfPages
 from analyze_results import *
 
 
-if __name__ == "__main__":
-    # Base directory used for loading saved results and also setting the
-    # target path
-    base_dir = ("/media/ssd2/results/IVOA/initial_results/")
-
-    # Target directory for saving the results
-    target_dir = base_dir + '/embeddings/'
-    # target_dir = source_dir + '/embeddings2048/'
+if __name__ == "__main__":    base_dir = ("/data/CAML/IVOA_CRA/evaluation_multi_class/")
+    #target_dir = source_dir + '/embeddings/'
+    target_dir = source_dir + '/unlocked_continued_best_16_embeddings/embeddings/'
 
     clustering_res_path = (base_dir + '/embeddings/' + 
-        'alex_multi_7_newIndoor_noMedFilt_PCA20_thresh03_bwp01_subp3_meanshift.pkl')
-
-    result_file_name = 'alex_multi_7_newIndoor_noMedFilt_PCA20_thresh03_bwp01_subp3_meanshift'
-
-    #********************
-    #### Parameters
-    #********************
+        'evaluation_unlocked_continued_kmeans.pkl')
+   
+    result_file_name = (
+      "evaluation_unlocked_continued_kmeans")
     
     
     #********************
