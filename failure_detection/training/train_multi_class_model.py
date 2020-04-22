@@ -160,7 +160,7 @@ if __name__=="__main__":
     #NUM_WORKERS = 24 # Allocate 8 GPUs and 12 Cpus
     #NUM_WORKERS = 2 # Allocate 8 GPUs and 12 Cpus
     
-    BATCH_SIZE = 500 #
+    BATCH_SIZE = 250 #
     NUM_WORKERS = 4 #
     
     train_set_dict = {
