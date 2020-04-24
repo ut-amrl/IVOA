@@ -61,7 +61,7 @@ def show_img(img, cluster_idx, save=True):
     fig = plt.figure()
     plt.imshow(np.transpose(npimg, (1,2,0)), interpolation='nearest')
     if save:
-        plt.imsave('cluster_{0}.png'.format(cluster_idx), np.transpose(npimg, (1,2,0)))
+        plt.imsave(target_dir + '/' + result_name  + '_cluster_{0}.png'.format(cluster_idx), np.transpose(npimg, (1,2,0)))
     
 if __name__ == "__main__":
   
@@ -73,12 +73,9 @@ if __name__ == "__main__":
                          5 : 'yellow',
                          6 : 'black'}
   
-      source_dir = ("/data/CAML/IVOA_CRA/evaluation_multi_class/unlocked_continued_best_16_embeddings")
-    
-      target_dir = source_dir + '/embeddings/'
-      
-      files_of_interes_patch_info = [ target_dir + "/" + 
-        "evaluation_unlocked_continued_r_test_1_patch_info.json"]
+      source_dir = ("/data/CAML/IVOA_CRA/evaluation_multi_class_uncertainty")
+      target_dir = source_dir + '/clustering'
+      result_name = 'kmeans_r_3'
 
       #********************
       # Modify the following paths
@@ -86,9 +83,9 @@ if __name__ == "__main__":
 
       #****************************
       #********* Subsampled Mean MeanShift
-      tsne_res_path = (source_dir + '/embeddings/evaluation_unlocked_continued_kmeans_3_tsne_res.csv')
-      tsne_patch_indices_path = (source_dir + '/embeddings/evaluation_unlocked_continued_kmeans_3_patch_indices.csv')
-      clustering_res_path = (source_dir + '/embeddings/evaluation_unlocked_continued_kmeans_3_kmeans.pkl')
+      tsne_res_path = (target_dir + '/clustered_embeddings_r_tsne_res.csv')
+      tsne_patch_indices_path = (target_dir + '/clustered_embeddings_r_patch_indices.csv')
+      clustering_res_path = (target_dir + '/clustered_embeddings_r_kmeans.pkl')
 
       dataset_path = "/data/CAML/IVOA_CRA/"
 
@@ -108,7 +105,7 @@ if __name__ == "__main__":
       
       PATCH_SIZE = 50
       
-      bagfile_list = [1, 2, 3, 4, 5]
+      sessions_list = [1, 2, 3, 4, 5]
       
       device = "cpu"
 
@@ -206,9 +203,6 @@ if __name__ == "__main__":
       plt.scatter(tsne_res[:,0], tsne_res[:,1], c=label_color)
       plt.title("K-Means clustering result")
       
-      
-      
-      
       #--------------------------------------
       # Randomly sample points from each cluster and visualize the
       # corresponding image patches
@@ -263,8 +257,8 @@ if __name__ == "__main__":
           #full_img = full_img.convert(mode = "RGB")
       
 
-      fig.savefig('fig1.png')
-      fig2.savefig('fig2.png')
+      fig.savefig(target_dir + '/' + result_name + '_fig1.png')
+      fig2.savefig(target_dir + '/' + result_name  + '_fig2.png')
 
       
       

@@ -49,39 +49,29 @@ from analyze_results import *
 
 
 if __name__ == "__main__":
-    source_dir = ("/mnt/nfs/work1/joydeepb/srabiee/results/"
-                  "introspective_failure_detection/"
-                  "alex_multi_7_color_noMedFilt")
-    #target_dir = source_dir + '/embeddings/'
-    target_dir = source_dir + '/embeddings2048/'
-    
-    
+    source_dir = ("/data/CAML/IVOA_CRA/evaluation_multi_class_uncertainty")
 
+    target_dir = source_dir + '/clustering'
     
     # **** 2048 embedding size:
-    files_of_interes_patch_info = [ source_dir + "/" + 
-        "alex_multi_7__withConf_result_newIndoor_patch_info.json"]
-    files_of_interest_embeddings = [ source_dir + "/" +
-        "alex_multi_7_2048embd_newIndoor_patch_embeddings.csv"]
+    files_of_interes_patch_info = [ source_dir + "/embeddings/embeddings" + 
+        "embeddings_test_1_patch_info.json"]
+    files_of_interest_embeddings = [ source_dir + "/embeddings/embeddings" +
+        "embeddings_test_1_patch_embeddings.csv"]
     files_of_interest_prediction = [ source_dir + "/" + 
-                        "alex_multi_7__withConf_result_newIndoor_data.json"]
+        "evaluation_multi_class_uncertainty_test_1_data.json"]
     
-   
     result_file_name = (
-      "alex_multi_7_newIndoor_noMedFilt_PCA20_thresh03_kmeans2_2048")
-
-    
-
+      "/clustered_embeddings")
         
     #********************
     #### Parameters
     UNCERTAINTY_THRESH = 0.03
-    CLUSTER_NUM = 2
+    CLUSTER_NUM = 3
     CLUSTERING_METHOD = 'kmeans' # {'kmeans','dbscan', 'MeanShift'}
     
-    SUBSAMPLE_DATA = False
-    SUBSAMPLING_RATIO = 0.3
-    
+    SUBSAMPLE_DATA = True
+    SUBSAMPLING_RATIO = 0.05
     
     #********************
     #*** Loading data
@@ -97,7 +87,6 @@ if __name__ == "__main__":
             embeddings = curr_embed
         else:
             embeddings = np.append(embeddings, curr_embed, 0)
-   
     
     print("Size of embeddings: ", embeddings.shape)
     print(type(embeddings))
@@ -112,12 +101,11 @@ if __name__ == "__main__":
     confident_mask = filter_unconfident(pred_results_np,
                                         UNCERTAINTY_THRESH) # 0.03, 0.02, 
                                                                 # 0.15, 0.015
-    
     final_mask = np.logical_and(perception_error_mask, confident_mask)
     print("Number of confident FN and FP instances: " 
            ,np.sum(final_mask))
     final_mask_indices = np.argwhere(final_mask)
-    
+        
     if SUBSAMPLE_DATA:
         data_num = final_mask_indices.size
         sample_num = floor(data_num * SUBSAMPLING_RATIO)
