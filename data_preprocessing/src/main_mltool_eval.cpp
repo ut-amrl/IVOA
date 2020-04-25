@@ -45,7 +45,7 @@
 #include "io_access.h"
 #include "depth2pointcloud.h"
 #include "evaluator.h"
-#include"cnpy.h"
+#include "cnpy.h"
 
 using cv::Mat;
 using namespace std;
@@ -61,6 +61,7 @@ DEFINE_string(source_dir, "", "Path to the base directory of the source "
                               "dataset.");
 DEFINE_string(cam_extrinsics_path, "", "Path to the file containing the "
                                        "left camera calibration file.");
+DEFINE_string(trajectory_path, "", "Path to the trajectory file to use.");
 DEFINE_string(output_dir, "", "Path to save the generated results. ");
 DECLARE_bool(help);
 DECLARE_bool(helpshort);
@@ -105,7 +106,8 @@ void CheckCommandLineArgs(char** argv) {
   vector<string> required_args = {"session_num",
                                   "source_dir",
                                   "cam_extrinsics_path",
-                                  "output_dir"};
+                                  "output_dir",
+                                  "trajectory_path"};
   
   for (const string& arg_name:required_args) {
     bool flag_not_set =   
@@ -117,6 +119,43 @@ void CheckCommandLineArgs(char** argv) {
   }
 }
 
+void GetTrajectoryPoses(const std::string &path,
+                         std::vector<std::pair<Eigen::Vector3f, Eigen::Vector4f>> *trajectory) {
+  std::ifstream trajFile(path);
+  std::string line;
+
+  while(std::getline(trajFile, line)) {
+    std::stringstream ss(line);
+
+    string timestamp;
+    std::getline(ss, timestamp, ',');
+
+    string skip;
+    // Ignore the next 3 elements (speed, gear, rpm)
+    std::getline(ss, skip, ',');
+    std::getline(ss, skip, ',');
+    std::getline(ss, skip, ',');
+
+    string pos_x;
+    std::getline(ss, pos_x, ',');
+    string pos_y;
+    std::getline(ss, pos_y, ',');
+    string pos_z;
+    std::getline(ss, pos_z, ',');
+    Eigen::Vector3f pose = Eigen::Vector3f(stof(pos_x), stof(pos_y), stof(pos_z));
+
+    string orientation_x;
+    std::getline(ss, orientation_x, ',');
+    string orientation_y;
+    std::getline(ss, orientation_y, ',');
+    string orientation_z;
+    std::getline(ss, orientation_z, ',');
+    string orientation_w;
+    std::getline(ss, orientation_w, ',');
+    Eigen::Vector4f orientation = Eigen::Vector4f(stof(orientation_x), stof(orientation_y), stof(orientation_z), stof(orientation_w));
+    trajectory->push_back(std::make_pair(pose, orientation));
+  }
+}
 
 
 int main(int argc, char **argv) {
@@ -189,12 +228,21 @@ int main(int argc, char **argv) {
   
   
   // TODO: load the trajectory file
-  
+  // For each point in the trajectory, load the pose and orientation
+  // They should be in the order of the filenames
+  vector<std::pair<Eigen::Vector3f, Eigen::Vector4f>> trajectory;
+  GetTrajectoryPoses(FLAGS_trajectory_path,
+                      &trajectory);
+
+  // If this isn't true, we likely aren't using the correct pruned trajectory
+  CHECK_EQ(trajectory.size(), filename_prefixes.size());
+
   std::cout << std::numeric_limits<unsigned long int>::max() << std::endl;
   std::cout << std::numeric_limits<unsigned long long>::max() << std::endl;
   
   int count = 0;
-  for (const int &i : filename_prefixes) {
+  for (int idx = 0; idx < filename_prefixes.size(); idx++) {
+    const int& i = filename_prefixes[idx];
     
     stringstream ss;
     ss << setfill('0') << setw(10) << i;
@@ -299,6 +347,9 @@ int main(int argc, char **argv) {
     
     // TODO: T_base2map (transformation from base_link to map) should be  
     // set from the loaded car trajectory and set accordingly.
+    std::pair<Eigen::Vector3f, Eigen::Vector4f> pose = trajectory[idx];
+    // std::cout << "POSE: " << pose.first.transpose() << std::endl;
+    // std::cout << "ORIENTATION: " << pose.second.transpose() << std::endl;
     Eigen::Matrix4f T_base2map;
     T_base2map.setIdentity();
     
