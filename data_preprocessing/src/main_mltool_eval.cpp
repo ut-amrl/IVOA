@@ -120,7 +120,7 @@ void CheckCommandLineArgs(char** argv) {
 }
 
 void GetTrajectoryPoses(const std::string &path,
-                         std::vector<std::pair<Eigen::Vector3f, Eigen::Vector4f>> *trajectory) {
+                         std::vector<std::pair<Eigen::Vector3f, Eigen::Quaternion<float>>> *trajectory) {
   std::ifstream trajFile(path);
   std::string line;
 
@@ -142,7 +142,7 @@ void GetTrajectoryPoses(const std::string &path,
     std::getline(ss, pos_y, ',');
     string pos_z;
     std::getline(ss, pos_z, ',');
-    Eigen::Vector3f pose = Eigen::Vector3f(stof(pos_x), stof(pos_y), stof(pos_z));
+    Eigen::Vector3f pose(stof(pos_x), stof(pos_y), stof(pos_z));
 
     string orientation_x;
     std::getline(ss, orientation_x, ',');
@@ -152,7 +152,7 @@ void GetTrajectoryPoses(const std::string &path,
     std::getline(ss, orientation_z, ',');
     string orientation_w;
     std::getline(ss, orientation_w, ',');
-    Eigen::Vector4f orientation = Eigen::Vector4f(stof(orientation_x), stof(orientation_y), stof(orientation_z), stof(orientation_w));
+    Eigen::Quaternion<float> orientation(stof(orientation_x), stof(orientation_y), stof(orientation_z), stof(orientation_w));
     trajectory->push_back(std::make_pair(pose, orientation));
   }
 }
@@ -230,7 +230,7 @@ int main(int argc, char **argv) {
   // TODO: load the trajectory file
   // For each point in the trajectory, load the pose and orientation
   // They should be in the order of the filenames
-  vector<std::pair<Eigen::Vector3f, Eigen::Vector4f>> trajectory;
+  vector<std::pair<Eigen::Vector3f, Eigen::Quaternion<float>>> trajectory;
   GetTrajectoryPoses(FLAGS_trajectory_path,
                       &trajectory);
 
@@ -347,11 +347,14 @@ int main(int argc, char **argv) {
     
     // TODO: T_base2map (transformation from base_link to map) should be  
     // set from the loaded car trajectory and set accordingly.
-    std::pair<Eigen::Vector3f, Eigen::Vector4f> pose = trajectory[idx];
+    std::pair<Eigen::Vector3f, Eigen::Quaternion<float>> pose = trajectory[idx];
     // std::cout << "POSE: " << pose.first.transpose() << std::endl;
     // std::cout << "ORIENTATION: " << pose.second.transpose() << std::endl;
     Eigen::Matrix4f T_base2map;
     T_base2map.setIdentity();
+    T_base2map.block<3,3>(0,0) = pose.second.toRotationMatrix();
+    T_base2map.block<3,1>(0,3) = pose.first;
+    std::cout << "Transformation: \n" << T_base2map << std::endl;
     
     evaluator.EvaluatePredictions(proj_ptcloud_pred,
                                   proj_ptcloud_gt,
@@ -364,7 +367,8 @@ int main(int argc, char **argv) {
     
     // TODO: Keep track of the failures instances across time
     
-    
+
+
     
     // Publish the filtered point clouds
     if (kVisualization) {
