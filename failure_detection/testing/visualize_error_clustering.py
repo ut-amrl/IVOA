@@ -56,33 +56,38 @@ def onclick(event):
           ('double' if event.dblclick else 'single', event.button,
           event.x, event.y, event.xdata, event.ydata))
           
-def show_img(img):
+def show_img(img, cluster_idx, save=True):
     npimg = img.numpy()
-    plt.figure()
+    fig = plt.figure()
     plt.imshow(np.transpose(npimg, (1,2,0)), interpolation='nearest')
-
-
+    if save:
+        plt.imsave(target_dir + '/' + result_name  + '_cluster_{0}.png'.format(cluster_idx), np.transpose(npimg, (1,2,0)))
+    
 if __name__ == "__main__":
+  
+      LABEL_COLOR_MAP = {0 : 'b',
+                         1 : 'g',
+                         2 : 'r',
+                         3 : 'cyan',
+                         4 : 'magenta',
+                         5 : 'yellow',
+                         6 : 'black'}
+  
+      source_dir = ("/data/CAML/IVOA_CRA/evaluation_multi_class_uncertainty")
+      target_dir = source_dir + '/clustering'
+      result_name = 'kmeans_r_3'
 
       #********************
       # Modify the following paths
       # ********************
 
-      # Path to the saved results of the dimensionality_reduction.py script
-      base_dir = ("/media/ssd2/results/IVOA/initial_results/embeddings/")
-      tsne_res_path = (base_dir +
-                       'airsim_ivoa_PCA20_thresh03_kmeans2_tsne_res.csv')
-      tsne_patch_indices_path = (base_dir +
-                       'airsim_ivoa_PCA20_thresh03_kmeans2_patch_indices.csv')
-      clustering_res_path = (base_dir +
-                       'airsim_ivoa_PCA20_thresh03_kmeans2_kmeans.pkl')
-      
+      #****************************
+      #********* Subsampled Mean MeanShift
+      tsne_res_path = (target_dir + '/clustered_embeddings_r_tsne_res.csv')
+      tsne_patch_indices_path = (target_dir + '/clustered_embeddings_r_patch_indices.csv')
+      clustering_res_path = (target_dir + '/clustered_embeddings_r_kmeans.pkl')
 
-      # Path to IVOA dataset
-      dataset_path = "/media/ssd2/datasets/AirSim_IVOA/ivoa_dataset_testing2"
-
-      # Set the list of sessions the above results are from.
-      sessions_list = [1]
+      dataset_path = "/data/CAML/IVOA_CRA/"
 
       #----------------------------------
       # Parameters
@@ -98,8 +103,10 @@ if __name__ == "__main__":
       VIS_GRID_ROW = 5
       VIS_GRID_COL = 10
       
-      PATCH_SIZE = 100
-
+      PATCH_SIZE = 50
+      
+      sessions_list = [1, 2, 3, 4, 5]
+      
       device = "cpu"
 
       # Colors assigned to cluster numbers
@@ -196,9 +203,6 @@ if __name__ == "__main__":
       plt.scatter(tsne_res[:,0], tsne_res[:,1], c=label_color)
       plt.title("K-Means clustering result")
       
-      
-      
-      
       #--------------------------------------
       # Randomly sample points from each cluster and visualize the
       # corresponding image patches
@@ -248,12 +252,14 @@ if __name__ == "__main__":
                                     patch.shape[2])
               patch_list = torch.cat((patch_list, patch),0)
               
-          show_img(make_grid(patch_list, nrow=VIS_GRID_ROW))
+          show_img(make_grid(patch_list, nrow=VIS_GRID_ROW), i)
           #full_img = transforms.ToPILImage()(full_img[0, :, :, :])
           #full_img = full_img.convert(mode = "RGB")
       
-      
-      plt.show()
+
+      fig.savefig(target_dir + '/' + result_name + '_fig1.png')
+      fig2.savefig(target_dir + '/' + result_name  + '_fig2.png')
+
       
       
       

@@ -138,16 +138,16 @@ if __name__=="__main__":
     
     class_weights_coeff = [1.0, 1.0, 1.0, 1.0]
     NETWORK_MODEL = "alexnet" # "alexnet", "resnet152", "inception_v3"
-    LOCK_FEATURE_EXT_LAYERS = True
+    LOCK_FEATURE_EXT_LAYERS = False
     USE_GPU = True
     USE_MULTI_GPU = True
     LOAD_MULTI_GPU_MODEL = True
     DATASET_IMAGE_CHANNEL = 3 # number of channels of the dataset images
-    LOAD_MODEL_WEIGHTS = False
+    LOAD_MODEL_WEIGHTS = True
 
     MODEL_LOAD_DIR =(
-                  "/mnt/nfs/work1/joydeepb/srabiee/nn_models/failure_detection/"
-                  "alex_multi_7_color_noMedFilt_best_model.pt")
+                  "/data/CAML/IVOA_CRA/models/snapshot/"
+                  "cra_full_train_model_unlocked_best_model_010.pt")
    
   
     EPOCH_NUM = 30
@@ -159,16 +159,16 @@ if __name__=="__main__":
     #BATCH_SIZE = 1000 #  default until train_6
     #NUM_WORKERS = 24 # Allocate 8 GPUs and 12 Cpus
     #NUM_WORKERS = 2 # Allocate 8 GPUs and 12 Cpus
-    
-    BATCH_SIZE = 500 #
-    NUM_WORKERS = 4 #
+
+    BATCH_SIZE = 4096 #
+    NUM_WORKERS = 16 #
     
     train_set_dict = {
-      "train_1":[1, 3, 4]
+      "train_1":[10, 11, 12, 13, 14, 15, 16]
       }
       
     valid_set_dict = {
-      "valid_1":[1]
+      "valid_1":[6, 7, 8, 9]
     }
    
     
@@ -319,7 +319,7 @@ if __name__=="__main__":
 
     
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(params_to_update, lr=0.001, momentum=0.9)
+    optimizer = optim.SGD(params_to_update, lr=0.005, momentum=0.9)
     
     #optimizer = optim.Adam(params_to_update, lr=0.001, betas=(0.9, 0.999), 
                                     #eps=1e-08, weight_decay=0, amsgrad=False)

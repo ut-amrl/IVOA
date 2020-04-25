@@ -219,13 +219,13 @@ if __name__=="__main__":
                            # for retrieving this information
     LOAD_MODEL_WEIGHTS = True
     USE_MULTI_GPU = True
-    BATCH_SIZE = 2000 # 400
+    BATCH_SIZE = 4096 # 400
     NUM_WORKERS = 12 # Allocate 4 GPUs and 6 Cpus
     #BATCH_SIZE = 2 # 400
     #NUM_WORKERS = 4 # Allocate 4 GPUs and 6 Cpus
     
     test_set_dict = {
-      "test1":[1]
+        "test_1": [1, 2, 3, 4, 5]
     }
    
     

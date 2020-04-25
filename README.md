@@ -69,15 +69,15 @@ dataset as explained in the [test](#markdown-header-test-ivoa) section.
 1. Modify the script `failure_detection/testing/extract_embedding.py` and set the dictionary `test_set_dict` to the session numbers for your test dataset. Run `failure_detection/testing/run_scripts/exec_extract_embedding.bash` after
 modifying the command line arguments according to your dataset.
 
-1. Run `failure_detection/testing/dimensionality_reduction.py`. This script
-clusters the embeddings and also performs dimensionality reduction on them.
-Before running the
+1. Run `failure_detection/testing/cluster_error_embeddings.py`. This script
+clusters the embeddings. Before running the
 script, set the path to the embeddings extracted by `extract_embedding.py` and
 the prediction results saved by `test_multi_class_model.py`. You can also
 modify the clustering method of choice and its parameters.
 
-1. Run `failure_detection/testing/error_clustering.py`. This script loads all
-the clustering and dimensionality reduction results that were saved in the previous
-step and visualizes random samples from each cluster. Before running the script,
-you should set the path to the outputs of `extract_embedding.py`
+1. Run `failure_detection/testing/dimensionality_reduction.py`. This script performs dimensionality reduction on the clusters in a way that endeavors to retain cluster separation in lower-dimensional space.
+Before running the. Before running the script, set the `clustering_res_path` to the result from `cluster_error_embeddings.py`. You can also modify the dimensionality reduction parameters.
+
+1. Run `failure_detection/testing/visualize_error_clustering.py`. This script loads the dimensionality reduction results that were saved in the previous step and visualizes random samples from each cluster. Before running the script,
+you should set the paths to the outputs of `cluster_error_embeddings.py` and `dimensionality_reduction.py`
 and also the `sessions_list` at the top of `main()`.

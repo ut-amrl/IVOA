@@ -46,133 +46,30 @@ from sklearn.cluster import MeanShift
 from sklearn.decomposition import PCA
 from matplotlib.backends.backend_pdf import PdfPages
 from analyze_results import *
+from tqdm import tqdm
 
 
 if __name__ == "__main__":
-    # Base directory used for loading saved results and also setting the
-    # target path
-    base_dir = ("/media/ssd2/results/IVOA/initial_results/")
+    base_dir = ("/data/CAML/IVOA_CRA/evaluation_multi_class_uncertainty")
+    #target_dir = source_dir + '/embeddings/'
+    target_dir = base_dir + '/clustering/'
 
-    # Target directory for saving the results
-    target_dir = base_dir + '/embeddings/'
-    # target_dir = source_dir + '/embeddings2048/'
-
-    # **** Saved Output of extract_embedding.py to be loaded:
-    files_of_interest_embeddings = [ base_dir + "/embeddings/" +
-        "airsim_ivoa_test1_patch_embeddings.csv"]
-
-    # **** Saved Output of test_multi_class.py to be loaded:
-    files_of_interest_prediction = [ base_dir +
-                        "airsim_ivoa_raw_test1_data.json"]
-    
-    # Prefix for the name of the output files of this script
+    clustering_res_path = (target_dir + 
+        'embeddings/clustered_embeddings_kmeans.pkl')
+   
     result_file_name = (
-      "airsim_ivoa_PCA20_thresh03_kmeans2")
-
-    #********************
-    #### Parameters
-    UNCERTAINTY_THRESH = 0.03
-    CLUSTER_NUM = 2
-    CLUSTERING_METHOD = 'kmeans' # {'kmeans','dbscan', 'MeanShift'}
-    
-    SUBSAMPLE_DATA = False
-    SUBSAMPLING_RATIO = 0.3
-    
+      "clustered_embeddings")
     
     #********************
     #*** Loading data
-    prediction_results = load_result_files(files_of_interest_prediction)
-    merged_pred_results = merge_results(prediction_results)
-    pred_results_np = convert_results_to_np(merged_pred_results)
-   
-    embeddings = np.array([], dtype=float)
-    for i in range(len(files_of_interest_embeddings)):
-        file = files_of_interest_embeddings[i]
-        curr_embed = np.loadtxt(file, dtype=float, delimiter=',')
-        if i == 0:
-            embeddings = curr_embed
-        else:
-            embeddings = np.append(embeddings, curr_embed, 0)
-   
     
-    print("Size of embeddings: ", embeddings.shape)
-    print(type(embeddings))
-    
-    # Keep only data points classified as FP and FN
-    FN_mask = pred_results_np["predictions"] == 3 
-    FP_mask = pred_results_np["predictions"] == 2 
-    perception_error_mask = np.logical_or(FN_mask, FP_mask)
-    print("Number of FN and FP instances: " ,np.sum(perception_error_mask))
-    
-    # Keep only data points that are predicted with confidence
-    confident_mask = filter_unconfident(pred_results_np,
-                                        UNCERTAINTY_THRESH) # 0.03, 0.02, 
-                                                                # 0.15, 0.015
-    
-    final_mask = np.logical_and(perception_error_mask, confident_mask)
-    print("Number of confident FN and FP instances: " 
-           ,np.sum(final_mask))
-    final_mask_indices = np.argwhere(final_mask)
-    
-    if SUBSAMPLE_DATA:
-        data_num = final_mask_indices.size
-        sample_num = floor(data_num * SUBSAMPLING_RATIO)
-        sampled_indices = np.random.choice(final_mask_indices.flatten(), 
-                                    replace=False, size=sample_num)
-        subsampled_mask = np.zeros_like(final_mask)
-        subsampled_mask[sampled_indices] = 1
-        final_mask_indices = sampled_indices
-        final_mask = subsampled_mask
-        print("Subsampled data num: ", final_mask_indices.size)
-        print("final mask size: ", np.sum(final_mask))
-    
-    # Save the indices of the selected patches
-    if not os.path.exists(target_dir):
-        os.makedirs(target_dir)
-    
-    patch_indices_path = (target_dir+result_file_name+'_patch_indices.csv')
-    np.savetxt(patch_indices_path, final_mask_indices, delimiter=",",
-               fmt='%i')
-    print('Patch indices were saved to file.')
-    
-    selected_embeddings = embeddings[final_mask, :]
-    print("Size of selected embeddings: ", selected_embeddings.shape)
-    
-    # *****************
-    # **** Clustering**
-    # *****************
-    if CLUSTERING_METHOD == 'kmeans':
-        # Apply clustering in the embedding space
-        kmeans =(KMeans(n_clusters=CLUSTER_NUM,random_state=0).fit(
-                selected_embeddings))
-        
-        # Save the kmeans object to file
-        file_path = target_dir + result_file_name + '_kmeans.pkl'
-        afile = open(file_path, 'wb')
-        pickle.dump([kmeans, selected_embeddings], afile)
-        afile.close()
-    elif CLUSTERING_METHOD == 'dbscan':
-        clustering = DBSCAN(eps=50, min_samples=10, 
-                            n_jobs=4).fit(selected_embeddings)
-        # Save the dbscan object to file
-        file_path = target_dir + result_file_name + '_dbscan.pkl'
-        afile = open(file_path, 'wb')
-        pickle.dump([clustering, selected_embeddings], afile)
-        afile.close()
-    elif CLUSTERING_METHOD == 'MeanShift':
-        clustering = MeanShift(bandwidth=0.07).fit(selected_embeddings)
-        # Save the dbscan object to file
-        file_path = target_dir + result_file_name + '_meanshift.pkl'
-        afile = open(file_path, 'wb')
-        pickle.dump([clustering, selected_embeddings], afile)
-        afile.close()
-    print('Saved the result of the clustering in embedding space.')
-    print('Clustering method: ', CLUSTERING_METHOD)
-    
+    file_cluster = open(clustering_res_path, 'rb')
+    clustering, selected_embeddings = pickle.load(file_cluster)
+    file_cluster.close()
     # *****************
     # **** Run PCA ****
     # *****************
-    n_components = 20
+    n_components = 50
     pca_50 = PCA(n_components=n_components)
     pca_result_50 = pca_50.fit_transform(selected_embeddings)
     print ('Cumulative explained variation for {} principal '
@@ -184,15 +81,33 @@ if __name__ == "__main__":
     # *****************
     # *** Run t-SNE ***
     # *****************
-    tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
+
+    # def compute_distance_matrix():
+    #     dist = np.zeros((pca_result_50.shape[0], pca_result_50.shape[0]))
+    #     for i in tqdm(range(pca_result_50.shape[0]-1)):
+    #         for j in range(i+1, pca_result_50.shape[0]):
+    #             dist[i][j] =  np.linalg.norm(pca_result_50[i] - pca_result_50[j])
+    #             if clustering.labels_[i] != clustering.labels_[j]:
+    #                 dist[i][j] *= 4
+    #             dist[j][i] = dist[i][j]
+    #     return dist
+
+    clustering_label_lookup = {}
+    for i in range(pca_result_50.shape[0]):
+        clustering_label_lookup[pca_result_50[i].tobytes()] = clustering.labels_[i]
+
+    def compute_distance(x, y):
+        dist = np.linalg.norm(x - y)
+        if x.tobytes() not in clustering_label_lookup or y.tobytes() not in clustering_label_lookup:
+            return dist
+        if (clustering_label_lookup[x.tobytes()] != clustering_label_lookup[y.tobytes()]):
+            dist *= 4
+        return dist
+        
+    tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300, metric=compute_distance, n_jobs=16)
     tsne_results = tsne.fit_transform(pca_result_50)
-    
     
     tSNE_save_path = target_dir + result_file_name +'_tsne_res.csv'
     np.savetxt(tSNE_save_path, 
                tsne_results)
     print('Saved the tSNE result in ', tSNE_save_path)
-    
-
-    
-    

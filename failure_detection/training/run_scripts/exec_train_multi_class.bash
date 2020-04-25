@@ -1,20 +1,17 @@
 #!/bin/bash
 
 python ../train_multi_class_model.py \
- --data_path "/media/ssd2/datasets"\
-"/introspective_failure_detection_noMedFilt_colored" \
- --meta_data_path  "/media/ssd2/datasets"\
-"/introspective_failure_detection_noMedFilt_colored"  \
- --model_save_dir \
-"/media/ssd2/results/IVOA/tmp_testing/"\
+ --data_path "/data/CAML/IVOA_CRA/" \
+ --meta_data_path  "/data/CAML/IVOA_CRA/"  \
+ --model_save_dir "/data/CAML/IVOA_CRA/models/"\
  --snapshot_save_dir \
-"/media/ssd2/results/IVOA/tmp_testing/snapshot/"\
- --model_name "test_train_model"\
+"/data/CAML/IVOA_CRA/models/snapshot/"\
+ --model_name "cra_full_train_model_unlocked_continued"\
  --use_color_images true  \
  --online_patch_extraction true  \
- --patch_crop_size 100 \
+ --patch_crop_size 50 \
  --fn_sample_weight_coeff 0.1 \
- --train_set "train_7" \
- --validation_set "valid_6"
+ --train_set "train_1" \
+ --validation_set "valid_1"
 
 
