@@ -21,6 +21,7 @@
 
 #include <ros/ros.h>
 #include <ros/console.h>
+#include <time.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -28,6 +29,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/PointCloud.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
+#include <sensor_msgs/LaserScan.h>
 
 #include <vector>
 #include <string>
@@ -35,13 +37,43 @@
 #include "yaml-cpp/yaml.h"
 
 namespace IVOA {
+  
+// Struct for a 3D point cloud down projected and discretized in a 2D laserscan 
+// Compared to a simple 2D scan, this one keeps information about the original
+// 3D location of every ray in the 2D scan.
+struct ProjectedPtCloud {
+  float angle_min;        // start angle of the scan [rad]
+  float angle_max;        // end angle of the scan [rad]
+  float angle_increment;  // angular distance between measurements [rad]
+  float range_min;        // minimum range value [m]
+  float range_max;        // maximum range value [m]
+  std::vector<float> ranges;
+  std::vector<Eigen::Vector3f> points;
+};
+  
+  
 class Depth2Pointcloud{
  public:
   Depth2Pointcloud();
   ~Depth2Pointcloud() = default;
 
   bool GeneratePointcloud(const cv::Mat &depth_img,
+                          int img_margin,
                           sensor_msgs::PointCloud2* pointcloud2);
+  
+  bool GenerateProjectedPtCloud(const cv::Mat &depth_img,
+                                int img_margin,
+                                float angle_min,
+                                float angle_max,        
+                                float angle_increment,  
+                                float range_min,        
+                                float range_max,
+                                float height_min,
+                                float height_max,
+                                ProjectedPtCloud* proj_ptcloud);
+  
+  sensor_msgs::LaserScan ProjectedPtCloud_to_LaserScan(
+                              const ProjectedPtCloud& proj_ptcloud);
   
   sensor_msgs::PointCloud2 FilterPointCloudByDistance(
                           const sensor_msgs::PointCloud2& pointcloud2,
@@ -75,9 +107,13 @@ class Depth2Pointcloud{
  private:
   // Given the pixel coordinates and the depth reading, it generates the
   // corresponding 3d point (in meters)
-  geometry_msgs::Point32 Calculate3DCoord(unsigned int u,
-                                          unsigned int v,
-                                          float r);
+  geometry_msgs::Point32 Calculate3DCoord(int u, int v, float r);
+  
+  bool CalculateLaserIndex(float angle_rad,
+                           float angle_min,
+                           float angle_max,
+                           float angle_increment,
+                           int *index);
 
   // Camera intrinsics 
   float fx_ = 480.0;

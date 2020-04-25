@@ -44,6 +44,7 @@
 
 #include "io_access.h"
 #include "depth2pointcloud.h"
+#include "evaluator.h"
 #include"cnpy.h"
 
 using cv::Mat;
@@ -66,14 +67,36 @@ DECLARE_bool(helpshort);
 
 
 // Parameters
-const bool kVisualization = false;
+const bool kVisualization = true;
 
 
 // Objects that are further than max_range_ away from the agent will not be
 // considered for obstacle avoidance
-const float kMaxRange = 20.0; // meters
+const float kMaxRange = 40.0; // meters
 const float kMinObstacleHeight = 0.3; // meters
 const float kMaxObstacleHeight = 2.0; // meters
+
+// If the predicted distance to obstacle is off from the ground truth by
+// more than max(kDistanceErrThresh, kRelativeErrThresh * TrueDistance), it 
+// will be labeled as either FP (if pred_dist < gt_dist) or FN (if pred_dist > 
+// gt_dist)
+const float kDistanceErrThresh = 1.0; // meters
+const float kRelativeDistanceErrThresh = 0.0; // ratio in [0, 1]
+
+// Remove depth predictions in the margins of the depth image
+const int kMarginWidth = 200;
+
+
+// TODO: Calculate kMinAngleLaser and kMaxAngleLaser given the kMarginWidth
+// and the intrinsics of the camera. The TN statistics will be larger than
+// the true value if the laser angular range is not calculated based on 
+// kMarginWidth 
+
+// Parameters of the virtual 2D laser scan
+const float kMinRange = 0.1; // meters
+const float kMinAngleLaser = -45.0 * M_PI / 180.0;
+const float kMaxAngleLaser =  45.0 * M_PI / 180.0;
+const float kAngleIncrementLaser = 0.5 * M_PI / 180.0;
 
 const cv::Size kImageSize(960, 600);
 
@@ -102,7 +125,7 @@ int main(int argc, char **argv) {
   FLAGS_stderrthreshold = 0;   // INFO level logging.
   FLAGS_colorlogtostderr = 1;  // Colored logging.
   FLAGS_logtostderr = true;    // Don't log to disk
-  
+ 
   
   string usage("This program detects and keeps track of failures in "
           "obstacle avoidance for a traveresed trajectory by the robot "
@@ -133,12 +156,25 @@ int main(int argc, char **argv) {
   ros::Publisher point_cloud_publisher_pred_filt =
       nh.advertise<sensor_msgs::PointCloud2>(
           "/ivoa/pred_pointcloud_filtered", 1);
+  ros::Publisher laserscan_publisher_gt =
+      nh.advertise<sensor_msgs::LaserScan>("/ivoa/gt_laserscan", 1);
+  ros::Publisher laserscan_publisher_pred =
+      nh.advertise<sensor_msgs::LaserScan>("/ivoa/pred_laserscan", 1);
+  ros::Publisher fp_laserscan_publisher =
+      nh.advertise<sensor_msgs::LaserScan>("/ivoa/fp_laserscan", 1);
+  ros::Publisher fn_laserscan_publisher =
+      nh.advertise<sensor_msgs::LaserScan>("/ivoa/fn_laserscan", 1);
   
   
   // Using only one instance of Depth2Pointcloud since the depth and left RGB
   // camera share the same extrinsics and intrinsics in our AirSim setup 
   Depth2Pointcloud depth_img_converter;
   depth_img_converter.LoadCameraCalibration(FLAGS_cam_extrinsics_path);
+  
+  Evaluator evaluator(kDistanceErrThresh,
+                      kRelativeDistanceErrThresh,
+                      kVisualization);
+  evaluator.LoadCameraCalibration(FLAGS_cam_extrinsics_path);
  
 
   string gt_depth_dir = FLAGS_source_dir + "/img_depth/";
@@ -151,8 +187,11 @@ int main(int argc, char **argv) {
                       &filename_prefixes);
   std::sort(filename_prefixes.begin(), filename_prefixes.end());
   
+  
   // TODO: load the trajectory file
   
+  std::cout << std::numeric_limits<unsigned long int>::max() << std::endl;
+  std::cout << std::numeric_limits<unsigned long long>::max() << std::endl;
   
   int count = 0;
   for (const int &i : filename_prefixes) {
@@ -198,8 +237,12 @@ int main(int argc, char **argv) {
     // Ground truth and predicted point clouds
     sensor_msgs::PointCloud2 pt_cloud_gt;
     sensor_msgs::PointCloud2 pt_cloud_pred;
-    if (!depth_img_converter.GeneratePointcloud(depth_img_gt, &pt_cloud_gt) ||
-      !depth_img_converter.GeneratePointcloud(depth_img_pred, &pt_cloud_pred)){
+    if (!depth_img_converter.GeneratePointcloud(depth_img_gt, 
+                                                kMarginWidth,
+                                                &pt_cloud_gt) ||
+      !depth_img_converter.GeneratePointcloud(depth_img_pred,
+                                              kMarginWidth, 
+                                              &pt_cloud_pred)){
       LOG(FATAL) << "Point cloud generation failed. "
                  << "No camera calibration was available.";
     }
@@ -224,22 +267,69 @@ int main(int argc, char **argv) {
                                                             kMaxObstacleHeight,
                                                             0,
                                                             kMaxRange);
-    
-    // Publish the filtered point clouds
-    if (kVisualization) {
-      point_cloud_publisher_gt_filt.publish(pt_cloud_gt);
-      point_cloud_publisher_pred_filt.publish(pt_cloud_pred);
-    }
+   
 
     
-    // TODO: Voxelize the pointclouds and do collision checking against both
-    // the ground truth and predicted point cloud
+
+    ProjectedPtCloud proj_ptcloud_pred;
+    ProjectedPtCloud proj_ptcloud_gt;
+    
+    depth_img_converter.GenerateProjectedPtCloud(depth_img_pred,
+                                            kMarginWidth,
+                                            kMinAngleLaser,
+                                            kMaxAngleLaser,        
+                                            kAngleIncrementLaser,  
+                                            kMinRange,        
+                                            kMaxRange,
+                                            kMinObstacleHeight,
+                                            kMaxObstacleHeight,
+                                            &proj_ptcloud_pred);
+   
+              
+    depth_img_converter.GenerateProjectedPtCloud(depth_img_gt,
+                                            kMarginWidth,
+                                            kMinAngleLaser,
+                                            kMaxAngleLaser,        
+                                            kAngleIncrementLaser,  
+                                            kMinRange,        
+                                            kMaxRange,
+                                            kMinObstacleHeight,
+                                            kMaxObstacleHeight,
+                                            &proj_ptcloud_gt);
+    
+    // TODO: T_base2map (transformation from base_link to map) should be  
+    // set from the loaded car trajectory and set accordingly.
+    Eigen::Matrix4f T_base2map;
+    T_base2map.setIdentity();
+    
+    evaluator.EvaluatePredictions(proj_ptcloud_pred,
+                                  proj_ptcloud_gt,
+                                  T_base2map,
+                                  static_cast<long unsigned int>(i));  
+    
     
     
     // TODO: Project the failure points to the image for visualization purposes
     
     // TODO: Keep track of the failures instances across time
     
+    
+    
+    // Publish the filtered point clouds
+    if (kVisualization) {
+      point_cloud_publisher_gt_filt.publish(pt_cloud_gt);
+      point_cloud_publisher_pred_filt.publish(pt_cloud_pred);
+      
+      sensor_msgs::LaserScan laserscan_gt = 
+            depth_img_converter.ProjectedPtCloud_to_LaserScan(proj_ptcloud_gt);
+      sensor_msgs::LaserScan laserscan_pred = 
+           depth_img_converter.ProjectedPtCloud_to_LaserScan(proj_ptcloud_pred);
+      laserscan_publisher_gt.publish(laserscan_gt);
+      laserscan_publisher_pred.publish(laserscan_pred);
+      
+      fp_laserscan_publisher.publish(evaluator.GetFalsePositivesScan());
+      fn_laserscan_publisher.publish(evaluator.GetFalseNegativesScan());
+    }
 
     if (kVisualization) {
       count++;
@@ -249,8 +339,19 @@ int main(int argc, char **argv) {
     }
   }
   
-
+  std::vector<unsigned long int>prediction_label_counts;
+  prediction_label_counts = evaluator.GetStatistics();
   
+  std::cout << "FP count: " << 
+        prediction_label_counts[Evaluator::PredictionLabel::FP] << std::endl
+            << "FN count: " << 
+        prediction_label_counts[Evaluator::PredictionLabel::FN] << std::endl
+            << "TP count: " <<
+        prediction_label_counts[Evaluator::PredictionLabel::TP] << std::endl
+            << "TN count: " <<
+        prediction_label_counts[Evaluator::PredictionLabel::TN] << std::endl;
+        
+
   return 0;
 }
 

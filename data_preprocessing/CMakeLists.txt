@@ -86,6 +86,7 @@ rosbuild_link_boost(airsim_data_processing thread signals system)
 rosbuild_add_executable(mltool_evaluation
                                 "src/main_mltool_eval.cpp"
                                 "src/depth2pointcloud.cpp"
+                                "src/evaluator.cpp"
                                 "src/io_access.cpp")
 target_link_libraries(mltool_evaluation  glog gflags ${OpenCV_LIBS}
                                 "-lpopt" boost_system -lboost_filesystem

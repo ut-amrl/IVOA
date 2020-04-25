@@ -35,6 +35,7 @@ Depth2Pointcloud::Depth2Pointcloud() {
 
 bool Depth2Pointcloud::GeneratePointcloud(
     const cv::Mat &depth_img,
+    int img_margin,
     sensor_msgs::PointCloud2* pointcloud2) {
   if (!calibration_is_loaded_) {
     std::cout << "Calibration files are not loaded." << std::endl;
@@ -59,8 +60,8 @@ bool Depth2Pointcloud::GeneratePointcloud(
   sensor_msgs::PointCloud2Iterator<float> out_z(*pointcloud2, "z");
 
   int valid_points_count = 0;
-  for (unsigned int y = 0; y < depth_img.rows; y++) {
-    for (unsigned int x = 0; x < depth_img.cols; x++) {      
+  for (int y = img_margin; y < depth_img.rows - img_margin; y++) {
+    for (int x = img_margin; x < depth_img.cols - img_margin; x++) {      
       float depth = depth_img.at<float>(y, x);
 
       // Reconstruct 3D point from x, y, raw_depth.
@@ -99,6 +100,110 @@ bool Depth2Pointcloud::GeneratePointcloud(
   }
 
   return true;
+}
+
+
+bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
+                                            int img_margin,
+                                            float angle_min,
+                                            float angle_max,        
+                                            float angle_increment,  
+                                            float range_min,        
+                                            float range_max,
+                                            float height_min,
+                                            float height_max,
+                                            ProjectedPtCloud* proj_ptcloud) {
+  if (!calibration_is_loaded_) {
+    std::cout << "Calibration files are not loaded." << std::endl;
+    return false;
+  }
+ 
+  int laserscan_size = floor((angle_max - angle_min) / angle_increment);
+  proj_ptcloud->ranges.clear();
+  proj_ptcloud->points.clear();
+  proj_ptcloud->ranges.resize(laserscan_size);
+  proj_ptcloud->points.resize(laserscan_size);
+  proj_ptcloud->angle_max = angle_max;
+  proj_ptcloud->angle_min = angle_min;
+  proj_ptcloud->angle_increment = angle_increment;
+  proj_ptcloud->range_max = range_max;
+  proj_ptcloud->range_min = range_min;
+  for (int i = 0; i < laserscan_size; i++) {
+    proj_ptcloud->ranges[i] = 2 * range_max;
+  }
+  
+  for (int y = img_margin; y < depth_img.rows - img_margin; y++) {
+    for (int x = img_margin; x < depth_img.cols - img_margin; x++) {      
+      float depth = depth_img.at<float>(y, x);
+
+      // Reconstruct 3D point from x, y, raw_depth.
+      geometry_msgs::Point32 point;
+
+      point = Calculate3DCoord(x, y, depth);
+      Eigen::Vector4f pt_cam;
+      pt_cam << point.x, point.y, point.z, 1.0;
+      
+      // TODO: Here we are assuming that the terrain is flat and that the
+      // base_link is parallel to the terrain. The pose of the base_link with
+      // respect to the world frame should be taken into accound to be more
+      // accurate and consider the robot tilting due to suspension
+      
+      // Convert the 3d point to the base_link reference frame
+      Eigen::Vector4f pt_base = T_cam2base_ * pt_cam;
+      
+      
+      
+      // TODO: For points with z < -min_height, project them to the ground
+      // plane along the line to camera center. (This is to handle hole
+      // locations more accurately)
+      if (fabs(pt_base(2)) >= height_min && pt_base(2) <= height_max) {
+//       if (pt_base(2) >= height_min && pt_base(2) <= height_max) {
+        float angle = atan2(pt_base(1), pt_base(0));
+        int index = 0;
+        if(!CalculateLaserIndex(angle,
+                                angle_min,
+                                angle_max,
+                                angle_increment,
+                                &index)) {
+          // The point is out of range of the laserscan
+          continue;
+        }
+
+        float range = sqrt(pt_base(0) * pt_base(0) 
+                          + pt_base(1) * pt_base(1));
+        if (range < proj_ptcloud->ranges[index] 
+            && range >= range_min
+            && range <= range_max) {
+          proj_ptcloud->ranges[index] = range;
+          proj_ptcloud->points[index] = Eigen::Vector3f(pt_base(0),
+                                                        pt_base(1),
+                                                        pt_base(2));
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+
+sensor_msgs::LaserScan Depth2Pointcloud::ProjectedPtCloud_to_LaserScan(
+                              const ProjectedPtCloud& proj_ptcloud) {
+  sensor_msgs::LaserScan laserscan;
+  laserscan.header.stamp = ros::Time::now();
+  laserscan.header.frame_id = "base_link";
+  
+  laserscan.angle_min = proj_ptcloud.angle_min;
+  laserscan.angle_max = proj_ptcloud.angle_max;
+  laserscan.range_max = proj_ptcloud.range_max;
+  laserscan.range_min = proj_ptcloud.range_min;
+  laserscan.angle_increment = proj_ptcloud.angle_increment;
+  
+  laserscan.time_increment = 0;
+  laserscan.scan_time = 0;
+  laserscan.ranges = proj_ptcloud.ranges;
+  
+  return laserscan;
 }
 
 
@@ -187,8 +292,8 @@ cv::Mat Depth2Pointcloud::GenerateObstacleImage(const cv::Mat &depth_img,
 
   cv::Mat obstacle_img(depth_img.rows, depth_img.cols, CV_8U);
   cv::Mat obstacle_dist(depth_img.rows, depth_img.cols, CV_32F);
-  for (unsigned int y = 0; y < depth_img.rows; y++) {
-    for (unsigned int x = 0; x < depth_img.cols; x++) {      
+  for (int y = 0; y < depth_img.rows; y++) {
+    for (int x = 0; x < depth_img.cols; x++) {      
       float depth = depth_img.at<float>(y, x);
 
       // Reconstruct 3D point from x, y, raw_depth.
@@ -254,8 +359,8 @@ int Depth2Pointcloud::LoadCameraCalibration(
 
 
 geometry_msgs::Point32 Depth2Pointcloud::Calculate3DCoord(
-                                                        unsigned int u,
-                                                        unsigned int v,
+                                                        int u,
+                                                        int v,
                                                         float raw_depth) {
   // Reconstruct 3D point from x, y, raw_depth.
   geometry_msgs::Point32 point;
@@ -270,6 +375,21 @@ geometry_msgs::Point32 Depth2Pointcloud::Calculate3DCoord(
   point.z = depth;
 
   return point;
+}
+
+bool Depth2Pointcloud::CalculateLaserIndex(float angle_rad,
+                                          float angle_min,
+                                          float angle_max,
+                                          float angle_increment,
+                                          int *index) {
+  if ((angle_rad > (angle_max + angle_increment / 2)) ||
+      (angle_rad < (angle_min - angle_increment / 2))) {
+    return false;
+  }
+
+  *index = floor ((angle_rad - (angle_min - angle_increment /2))
+                  / angle_increment);
+  return true;
 }
 
 
