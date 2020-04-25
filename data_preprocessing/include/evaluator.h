@@ -65,7 +65,8 @@ class Evaluator{
   };
 
   int LoadCameraCalibration(const std::string extrinsics_file);
-  void EvaluatePredictions(const ProjectedPtCloud& pred_scan,
+  // Returns the index in the errors_list_ of this evaluation
+  unsigned int EvaluatePredictions(const ProjectedPtCloud& pred_scan,
                            const ProjectedPtCloud& gt_scan,
                            const Eigen::Matrix4f& T_base2map,
                            const unsigned long int& frame_id);
@@ -75,8 +76,8 @@ class Evaluator{
   // TODO: Add helper functions for visualization of the errors 
   sensor_msgs::LaserScan GetFalsePositivesScan();
   sensor_msgs::LaserScan GetFalseNegativesScan();
-  
-  
+
+  std::vector<std::vector<Error>> GetErrors();
   
  private:
   

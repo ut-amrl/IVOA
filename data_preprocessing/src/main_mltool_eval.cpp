@@ -356,19 +356,19 @@ int main(int argc, char **argv) {
     T_base2map.block<3,1>(0,3) = pose.first;
     std::cout << "Transformation: \n" << T_base2map << std::endl;
     
-    evaluator.EvaluatePredictions(proj_ptcloud_pred,
+    unsigned int idx = evaluator.EvaluatePredictions(proj_ptcloud_pred,
                                   proj_ptcloud_gt,
                                   T_base2map,
                                   static_cast<long unsigned int>(i));  
     
-    
-    
-    // TODO: Project the failure points to the image for visualization purposes
-    
+    std::vector<Error> errors = evaluator.GetErrors()[idx];
+    std::vector<Vector2f> projected;
+    for(Error e : errors) {
+      projected.push_back(e.pixel_coord);
+    }
+
     // TODO: Keep track of the failures instances across time
     
-
-
     
     // Publish the filtered point clouds
     if (kVisualization) {

@@ -75,7 +75,7 @@ int Evaluator::LoadCameraCalibration(
   return 0;
 }
 
-void Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
+unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
                                     const ProjectedPtCloud& gt_scan,
                                     const Eigen::Matrix4f& T_base2map,
                                     const unsigned long int& frame_id) {
@@ -160,11 +160,15 @@ void Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
   
   errors_list_.push_back(errors);
   frame_count++;
+  return errors_list_.size() - 1;
 }
-
 
 std::vector<unsigned long int> Evaluator::GetStatistics() {
   return prediction_label_counts_;
+}
+
+std::vector<std::vector<Error>> Evaluator::GetErrors() {
+  return errors_list_;
 }
 
 sensor_msgs::LaserScan Evaluator::GetFalsePositivesScan() {
