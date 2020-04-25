@@ -356,14 +356,14 @@ int main(int argc, char **argv) {
     T_base2map.block<3,1>(0,3) = pose.first;
     std::cout << "Transformation: \n" << T_base2map << std::endl;
     
-    unsigned int idx = evaluator.EvaluatePredictions(proj_ptcloud_pred,
+    unsigned int errors_idx = evaluator.EvaluatePredictions(proj_ptcloud_pred,
                                   proj_ptcloud_gt,
                                   T_base2map,
                                   static_cast<long unsigned int>(i));  
     
-    std::vector<Error> errors = evaluator.GetErrors()[idx];
-    std::vector<Vector2f> projected;
-    for(Error e : errors) {
+    std::vector<Evaluator::Error> errors = evaluator.GetErrors()[errors_idx];
+    std::vector<Eigen::Vector2f> projected;
+    for(auto e : errors) {
       projected.push_back(e.pixel_coord);
     }
 

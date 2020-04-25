@@ -18,6 +18,7 @@
 // ========================================================================
 
 #include "evaluator.h"
+#include <numeric>
 
 using std::vector;
 using Eigen::Vector3f;
@@ -160,6 +161,62 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
   
   errors_list_.push_back(errors);
   frame_count++;
+
+
+  // Error Tracking
+  std::vector<int> tmp(errors.size());
+  std::generate(tmp.begin(),tmp.end(),[n=0]()mutable{return n++;});
+  std::set<int> untracked_errors(tmp.begin(), tmp.end());
+
+  printf("Looping over %d existing tracks for %d errors\n", error_tracks_.size(), errors.size());
+
+  for(ErrorTrack& track : error_tracks_) {
+    // printf("IN HERE FRAMES %ld %ld\t", track.last_frame_id, frame_id);
+    if ((frame_id - track.last_frame_id) > Evaluator::MAX_ERROR_TRACK_GAP) {
+      continue;
+    }
+
+    // Anchor each error track to its first seen location
+    // alternatives include centroid, or most recent location
+    Eigen::Vector3f track_loc = track.loc_map_history[0].second;
+
+    // Find the closest untracked error of the appropriate class
+    float min_distance = Evaluator::MAX_ERROR_TRACK_MAP_DISTANCE;
+    int min_idx = -1;
+    for(int i : untracked_errors) {
+      if (track.error_type != errors[i].error_type) {
+        continue;
+      }
+
+      float distance = (errors[i].loc_map - track_loc).norm();
+      if (distance < min_distance) {
+        min_distance = distance;
+        min_idx = i;
+      }
+    }
+    // printf("found min %d %f\n", min_idx, min_distance);
+
+    // Add the found error to the track
+    if (min_idx != -1) {
+      untracked_errors.erase(min_idx);
+      track.last_frame_id = frame_id;
+      track.loc_map_history.push_back(std::make_pair(frame_id, errors[min_idx].loc_map));
+    }
+  }
+
+
+  printf("Creating tracks for %d remaining errors\n", untracked_errors.size());
+
+  // For any errors *still* untracked, create new tracks!
+  for(int i : untracked_errors) {
+    ErrorTrack track;
+    track.error_type = errors[i].error_type;
+    track.last_frame_id = frame_id;
+    track.loc_map_history = std::vector<std::pair<unsigned long int, Eigen::Vector3f>>();
+    track.loc_map_history.push_back(std::make_pair(frame_id, errors[i].loc_map));
+    error_tracks_.push_back(track);
+  }
+
   return errors_list_.size() - 1;
 }
 
@@ -167,8 +224,12 @@ std::vector<unsigned long int> Evaluator::GetStatistics() {
   return prediction_label_counts_;
 }
 
-std::vector<std::vector<Error>> Evaluator::GetErrors() {
+std::vector<std::vector<Evaluator::Error>> Evaluator::GetErrors() {
   return errors_list_;
+}
+
+std::vector<Evaluator:: ErrorTrack> Evaluator::GetErrorTracks() {
+  return error_tracks_;
 }
 
 sensor_msgs::LaserScan Evaluator::GetFalsePositivesScan() {

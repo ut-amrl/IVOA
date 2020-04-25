@@ -64,6 +64,12 @@ class Evaluator{
           frame_id(frame_id){}
   };
 
+  struct ErrorTrack {
+    PredictionLabel error_type;
+    std::vector<std::pair<unsigned long int, Eigen::Vector3f>> loc_map_history; // pairs of (frame_id, location)
+    unsigned long int last_frame_id; // to keep track of the last time we saw this error
+  };
+
   int LoadCameraCalibration(const std::string extrinsics_file);
   // Returns the index in the errors_list_ of this evaluation
   unsigned int EvaluatePredictions(const ProjectedPtCloud& pred_scan,
@@ -78,6 +84,7 @@ class Evaluator{
   sensor_msgs::LaserScan GetFalseNegativesScan();
 
   std::vector<std::vector<Error>> GetErrors();
+  std::vector<ErrorTrack> GetErrorTracks();
   
  private:
   
@@ -97,10 +104,10 @@ class Evaluator{
   // image plane
   Eigen::Vector2f ProjectToCam(const Eigen::Vector3f& point_3d_in_cam_ref);
   
-   
   std::vector<unsigned long int>prediction_label_counts_;
   unsigned long int frame_count = 0;
   std::vector<std::vector<Error>> errors_list_;
+  std::vector<ErrorTrack> error_tracks_;
   
   // Laserscans for visualizing FP and FNs. Only used in debug_mode
   sensor_msgs::LaserScan fp_scan_;
@@ -129,6 +136,8 @@ class Evaluator{
   Eigen::Matrix4f T_cam2base_;
   bool calibration_is_loaded_ = false;
 
+  static const unsigned int MAX_ERROR_TRACK_GAP=5;
+  static constexpr float MAX_ERROR_TRACK_MAP_DISTANCE=3.0f;
 };
 } // namespace IVOA
 
