@@ -175,9 +175,9 @@ bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
             && range >= range_min
             && range <= range_max) {
           proj_ptcloud->ranges[index] = range;
-          proj_ptcloud->points[index] = Eigen::Vector3f(pt_base(0),
-                                                        pt_base(1),
-                                                        pt_base(2));
+          proj_ptcloud->points[index] = Eigen::Vector3f(pt_cam(0),
+                                                        pt_cam(1),
+                                                        pt_cam(2));
         }
       }
     }
