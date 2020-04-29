@@ -133,3 +133,6 @@ dmypy.json
 
 # Binary files
 data_preprocessing/bin
+
+# Data files/execution results
+data_preprocessing/scripts/*.csv

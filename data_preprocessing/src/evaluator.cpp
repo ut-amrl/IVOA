@@ -123,6 +123,7 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
     float dist_err = gt_scan.ranges[i] - pred_scan.ranges[i];
     float rel_err_thresh = rel_distance_err_thresh_ * gt_scan.ranges[i];
     dist_errors_.push_back(dist_err);
+    
     if (dist_err > std::max(distance_err_thresh_, rel_err_thresh)) {
       // FP
       prediction_label_counts_[FP]++;
@@ -302,11 +303,8 @@ Eigen::Vector2f Evaluator::ProjectToCam(
 
 std::vector<Evaluator::HistogramBucket> Evaluator::getDistanceErrorHistogram() {
   std::sort(dist_errors_.begin(), dist_errors_.end());
-  printf("total errors %ld\n", dist_errors_.size());
   float min = dist_errors_.front();
   float max = dist_errors_.back();
-
-  printf("MIN AND MAX %f %f\n", min, max);
 
   float bucketSize = (max - min) / Evaluator::HISTOGRAM_BUCKET_COUNT;
 
@@ -329,10 +327,10 @@ std::vector<Evaluator::HistogramBucket> Evaluator::getDistanceErrorHistogram() {
     histogram[bucket_idx].count++;
   }
 
-  printf("Created Histogram with %d buckets\n", histogram.size());
-  for(auto bucket : histogram) {
-    printf("Bucket (%f, %f): %ld\n", bucket.lower, bucket.upper, bucket.count);
-  }
+  // printf("Created Histogram with %d buckets\n", histogram.size());
+  // for(auto bucket : histogram) {
+  //   printf("Bucket (%f, %f): %ld\n", bucket.lower, bucket.upper, bucket.count);
+  // }
   return histogram;
 }
 

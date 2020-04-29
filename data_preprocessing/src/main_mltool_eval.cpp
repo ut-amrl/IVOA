@@ -489,7 +489,13 @@ int main(int argc, char **argv) {
     pa.header.frame_id = "base_link";
     trajectory_publisher.publish(pa);
     
-    evaluator.getDistanceErrorHistogram();
+    std::vector<Evaluator::HistogramBucket> histogram = evaluator.getDistanceErrorHistogram();
+    ofstream hist_file;
+    hist_file.open("dist_error_histogram.csv");
+    for(auto bucket : histogram) {
+      hist_file << bucket.lower << ", " << bucket.upper << ", " << bucket.count << std::endl;
+    }
+    hist_file.close();
   }
 
   std::vector<unsigned long int>prediction_label_counts;
