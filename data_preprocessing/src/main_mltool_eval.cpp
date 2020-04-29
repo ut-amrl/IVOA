@@ -25,6 +25,9 @@
 #include <opencv2/highgui/highgui.hpp>
 #include "opencv2/opencv.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
+#include <visualization_msgs/MarkerArray.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseArray.h>
 
 #include <glog/logging.h>
 #include <gflags/gflags.h>
@@ -40,7 +43,6 @@
 #include <iomanip>
 #include <jsoncpp/json/json.h>
 #include "yaml-cpp/yaml.h"
-
 
 #include "io_access.h"
 #include "depth2pointcloud.h"
@@ -70,7 +72,6 @@ DECLARE_bool(helpshort);
 // Parameters
 const bool kVisualization = true;
 
-
 // Objects that are further than max_range_ away from the agent will not be
 // considered for obstacle avoidance
 const float kMaxRange = 40.0; // meters
@@ -98,6 +99,13 @@ const float kMinRange = 0.1; // meters
 const float kMinAngleLaser = -45.0 * M_PI / 180.0;
 const float kMaxAngleLaser =  45.0 * M_PI / 180.0;
 const float kAngleIncrementLaser = 0.5 * M_PI / 180.0;
+
+// The minimum length below which we don't visualize error tracks
+const int kErrorTrackMinLength = 6;
+// The lenght to which we normalize track length opacity
+const int kErrorTrackMaxLength = 25;
+
+const int kVisualizationErrorSize = 2;
 
 const cv::Size kImageSize(960, 600);
 
@@ -203,8 +211,17 @@ int main(int argc, char **argv) {
       nh.advertise<sensor_msgs::LaserScan>("/ivoa/fp_laserscan", 1);
   ros::Publisher fn_laserscan_publisher =
       nh.advertise<sensor_msgs::LaserScan>("/ivoa/fn_laserscan", 1);
+
+  ros::Publisher error_track_publisher =
+      nh.advertise<visualization_msgs::MarkerArray>("/ivoa/error_tracks", 1);
+
+  ros::Publisher pose_publisher =
+      nh.advertise<geometry_msgs::PoseStamped>("/ivoa/pose", 1);
   
-  
+  ros::Publisher trajectory_publisher =
+      nh.advertise<geometry_msgs::PoseArray>("/ivoa/trajectory", 1);
+  geometry_msgs::PoseArray pa;
+
   // Using only one instance of Depth2Pointcloud since the depth and left RGB
   // camera share the same extrinsics and intrinsics in our AirSim setup 
   Depth2Pointcloud depth_img_converter;
@@ -250,11 +267,6 @@ int main(int argc, char **argv) {
     string gt_depth_path = gt_depth_dir + prefix + ".pfm";
     string pred_depth_path = pred_depth_dir + prefix + "_disp.npy";
     string left_img_path = left_img_dir + prefix + ".png";
-
-    
-    // Read the left cam image
-    Mat left_img = cv::imread(left_img_path,CV_LOAD_IMAGE_UNCHANGED);
-    
 
     // Read the Ground truth depth image
     PFM pfm_rw;
@@ -354,22 +366,17 @@ int main(int argc, char **argv) {
     T_base2map.setIdentity();
     T_base2map.block<3,3>(0,0) = pose.second.toRotationMatrix();
     T_base2map.block<3,1>(0,3) = pose.first;
-    std::cout << "Transformation: \n" << T_base2map << std::endl;
     
+    // std::cout << "Transformation: \n" << T_base2map << std::endl;
+
     unsigned int errors_idx = evaluator.EvaluatePredictions(proj_ptcloud_pred,
                                   proj_ptcloud_gt,
                                   T_base2map,
                                   static_cast<long unsigned int>(i));  
     
     std::vector<Evaluator::Error> errors = evaluator.GetErrors()[errors_idx];
-    std::vector<Eigen::Vector2f> projected;
-    for(auto e : errors) {
-      projected.push_back(e.pixel_coord);
-    }
+    // std::cout << "Example error location: " << errors[0].loc_map.transpose() << std::endl;
 
-    // TODO: Keep track of the failures instances across time
-    
-    
     // Publish the filtered point clouds
     if (kVisualization) {
       point_cloud_publisher_gt_filt.publish(pt_cloud_gt);
@@ -384,16 +391,107 @@ int main(int argc, char **argv) {
       
       fp_laserscan_publisher.publish(evaluator.GetFalsePositivesScan());
       fn_laserscan_publisher.publish(evaluator.GetFalseNegativesScan());
+
+      geometry_msgs::PoseStamped pose_msg;
+
+      pose_msg.header.stamp = ros::Time::now();
+      pose_msg.header.frame_id = "base_link";
+      pose_msg.pose.position.x = pose.first.x();
+      pose_msg.pose.position.y = pose.first.y();
+      pose_msg.pose.position.z = pose.first.z();
+
+      pose_msg.pose.orientation.x = pose.second.x();
+      pose_msg.pose.orientation.y = pose.second.y();
+      pose_msg.pose.orientation.z = pose.second.z();
+      pose_msg.pose.orientation.w = pose.second.w();
+
+      pa.poses.push_back(pose_msg.pose);
+      pose_publisher.publish(pose_msg);
     }
 
     if (kVisualization) {
-      count++;
+      // Read the left cam image
+      Mat left_img_annotated = cv::imread(left_img_path,CV_LOAD_IMAGE_UNCHANGED);
+      
+      for(Evaluator::Error e : errors) {
+        // int lower_x = max(int(e.pixel_coord.x() - kVisualizationErrorSize), 0);
+        // int upper_x = min(int(e.pixel_coord.x() + kVisualizationErrorSize), left_img_annotated.size().width);
+        // int lower_y = max(int(e.pixel_coord.y() - kVisualizationErrorSize), 0);
+        // int upper_y = min(int(e.pixel_coord.y() + kVisualizationErrorSize), left_img_annotated.size().height);
+
+        // for(int x = lower_x; x <= upper_x; x++) {
+        //   for(int y = lower_y; y <= upper_y; y++) {
+            cv::Vec3b & color = left_img_annotated.at<cv::Vec3b>(e.pixel_coord.y(), e.pixel_coord.x());
+            if (e.error_type == Evaluator::PredictionLabel::FP) {
+              color[0] = 255;
+              color[1] = 0;
+              color[2] = 0;
+            } else {
+              color[2] = 255;
+              color[1] = 0;
+              color[0] = 0;
+            }
+          // }
+        // }
+      }
+      #if DEBUG
       cout << "img num: " << i << endl;
-      cv::imshow("window", left_img);
+      cv::imshow("window", left_img_annotated);
       cv::waitKey(0);
+      #endif
     }
+
+    count++;
   }
-  
+
+  if (kVisualization) {
+    printf("Publishing error track markers...\n");
+    visualization_msgs::MarkerArray ma;
+    int id = 0;
+    for(Evaluator::ErrorTrack track : evaluator.GetErrorTracks()) {
+      visualization_msgs::Marker m;
+      if (track.loc_map_history.size() < kErrorTrackMinLength) {
+        continue;
+      }
+
+      m.pose.position.x = track.loc_map_history[0].second[0];
+      m.pose.position.y = track.loc_map_history[0].second[1];
+      m.pose.position.z = track.loc_map_history[0].second[2];
+      m.pose.orientation.x = 0.0;
+      m.pose.orientation.y = 0.0;
+      m.pose.orientation.z = 0.0;
+      m.pose.orientation.w = 1.0;
+
+      m.scale.x = 1.0;
+      m.scale.y = 1.0;
+      m.scale.z = 1.0;
+
+      m.ns = "error_tracks";
+      m.id = id++;
+      m.header.frame_id = "base_link";
+
+      float alpha = std::min(1.0f, (float)(track.loc_map_history.size() - kErrorTrackMinLength) / (kErrorTrackMaxLength - kErrorTrackMinLength));
+      if (track.error_type == Evaluator::PredictionLabel::FP) {
+        m.color.r = 1.0f;
+        m.color.g = 0.0f;
+        m.color.b = 0.0f;
+      } else {
+        m.color.r = 0.0f;
+        m.color.g = 0.0f;
+        m.color.b = 1.0f;
+      }
+      m.color.a = alpha;
+      ma.markers.push_back(m);
+    }
+
+    error_track_publisher.publish(ma);
+
+    pa.header.frame_id = "base_link";
+    trajectory_publisher.publish(pa);
+    
+    evaluator.getDistanceErrorHistogram();
+  }
+
   std::vector<unsigned long int>prediction_label_counts;
   prediction_label_counts = evaluator.GetStatistics();
   

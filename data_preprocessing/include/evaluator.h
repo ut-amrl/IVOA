@@ -70,6 +70,12 @@ class Evaluator{
     unsigned long int last_frame_id; // to keep track of the last time we saw this error
   };
 
+  struct HistogramBucket {
+    float lower;
+    float upper;
+    unsigned long int count;
+  };
+
   int LoadCameraCalibration(const std::string extrinsics_file);
   // Returns the index in the errors_list_ of this evaluation
   unsigned int EvaluatePredictions(const ProjectedPtCloud& pred_scan,
@@ -85,6 +91,8 @@ class Evaluator{
 
   std::vector<std::vector<Error>> GetErrors();
   std::vector<ErrorTrack> GetErrorTracks();
+
+  std::vector<HistogramBucket> getDistanceErrorHistogram();
   
  private:
   
@@ -105,6 +113,7 @@ class Evaluator{
   Eigen::Vector2f ProjectToCam(const Eigen::Vector3f& point_3d_in_cam_ref);
   
   std::vector<unsigned long int>prediction_label_counts_;
+  std::vector<float> dist_errors_;
   unsigned long int frame_count = 0;
   std::vector<std::vector<Error>> errors_list_;
   std::vector<ErrorTrack> error_tracks_;
@@ -138,6 +147,7 @@ class Evaluator{
 
   static const unsigned int MAX_ERROR_TRACK_GAP=5;
   static constexpr float MAX_ERROR_TRACK_MAP_DISTANCE=3.0f;
+  static const unsigned int HISTOGRAM_BUCKET_COUNT = 30;
 };
 } // namespace IVOA
 

@@ -29,6 +29,8 @@ using Eigen::Map;
 using std::cout;
 using std::endl;
 
+#define DEBUG false
+
 namespace IVOA {
   
 Evaluator::Evaluator(float distance_err_thresh,
@@ -120,7 +122,7 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
     PredictionLabel error_type;
     float dist_err = gt_scan.ranges[i] - pred_scan.ranges[i];
     float rel_err_thresh = rel_distance_err_thresh_ * gt_scan.ranges[i];
-   
+    dist_errors_.push_back(dist_err);
     if (dist_err > std::max(distance_err_thresh_, rel_err_thresh)) {
       // FP
       prediction_label_counts_[FP]++;
@@ -152,7 +154,8 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
                    T_base2map,
                    &error_loc_in_map,
                    &error_pixel_coord);
-      
+
+
       errors.push_back(Error(error_type, 
                              error_loc_in_map,
                              error_pixel_coord,
@@ -169,8 +172,10 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
   std::generate(tmp.begin(),tmp.end(),[n=0]()mutable{return n++;});
   std::set<int> untracked_errors(tmp.begin(), tmp.end());
 
+  #if DEBUG
   printf("Looping over %d existing tracks for %d errors\n", error_tracks_.size(), errors.size());
-
+  #endif
+  
   for(ErrorTrack& track : error_tracks_) {
     // printf("IN HERE FRAMES %ld %ld\t", track.last_frame_id, frame_id);
     if ((frame_id - track.last_frame_id) > Evaluator::MAX_ERROR_TRACK_GAP) {
@@ -205,8 +210,9 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
     }
   }
 
-
+  #if DEBUG
   printf("Creating tracks for %d remaining errors\n", untracked_errors.size());
+  #endif
 
   // For any errors *still* untracked, create new tracks!
   for(int i : untracked_errors) {
@@ -217,6 +223,10 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
     track.loc_map_history.push_back(std::make_pair(frame_id, errors[i].loc_map));
     error_tracks_.push_back(track);
   }
+
+  #if DEBUG
+  printf("Finished error track handling\n");
+  #endif
 
   return errors_list_.size() - 1;
 }
@@ -272,8 +282,10 @@ void Evaluator::LocateError(const Eigen::Vector3f& pred_loc_in_cam,
   Eigen::Vector4f pt_of_interest_h(1.0, 1.0, 1.0, 1.0);
   pt_of_interest_h.head(3) = pt_of_interest;
   Eigen::Vector4f pt_in_map;
+  // std::cout << "point of interest: " << pt_of_interest_h.transpose() << std::endl;
   pt_in_map = T_base2map * T_cam2base_ * pt_of_interest_h;
-  *err_loc_map = pt_in_map.head(3);
+  // std::cout << "point in map: " << pt_in_map.transpose() << std::endl;
+  *err_loc_map = pt_in_map.head(3) / pt_in_map[3];
 }
 
 Eigen::Vector2f Evaluator::ProjectToCam(
@@ -286,6 +298,42 @@ Eigen::Vector2f Evaluator::ProjectToCam(
   }
   Vector3f projection = (cam_mat_ * point_3d_in_cam_ref)/point_3d_in_cam_ref(2);
   return projection.head(2);
+}
+
+std::vector<Evaluator::HistogramBucket> Evaluator::getDistanceErrorHistogram() {
+  std::sort(dist_errors_.begin(), dist_errors_.end());
+  printf("total errors %ld\n", dist_errors_.size());
+  float min = dist_errors_.front();
+  float max = dist_errors_.back();
+
+  printf("MIN AND MAX %f %f\n", min, max);
+
+  float bucketSize = (max - min) / Evaluator::HISTOGRAM_BUCKET_COUNT;
+
+  std::vector<HistogramBucket> histogram(Evaluator::HISTOGRAM_BUCKET_COUNT);
+
+  float lower = min;
+  for(int bucket_idx = 0; bucket_idx < Evaluator::HISTOGRAM_BUCKET_COUNT; bucket_idx++) {
+    histogram[bucket_idx].lower = lower;
+    histogram[bucket_idx].upper = lower + bucketSize;
+    histogram[bucket_idx].count = 0;
+    lower += bucketSize;
+  }
+
+  int bucket_idx = 0;
+  for(int i = 0; i < dist_errors_.size(); i++) {
+    while (dist_errors_[i] > histogram[bucket_idx].upper) {
+      bucket_idx++;
+    }
+
+    histogram[bucket_idx].count++;
+  }
+
+  printf("Created Histogram with %d buckets\n", histogram.size());
+  for(auto bucket : histogram) {
+    printf("Bucket (%f, %f): %ld\n", bucket.lower, bucket.upper, bucket.count);
+  }
+  return histogram;
 }
 
 } // namespace IVOA
