@@ -52,7 +52,7 @@ int Evaluator::LoadCameraCalibration(
   const std::string extrinsics_file) {
   // Load the calibration yaml files
   YAML::Node cam_ext = YAML::LoadFile(extrinsics_file);
-
+  
 
   std::vector<float> T_cam2base_vec;
   if (cam_ext["T_cam2base"]["data"]) {
@@ -65,6 +65,7 @@ int Evaluator::LoadCameraCalibration(
 
   CHECK_EQ(T_cam2base_vec.size(), 12) << "Corrupted calibration file.";
 
+  T_cam2base_ = Matrix4f::Identity();
 
   // Convert the loaded data to eigen matrices
   Map<Matrix<float, 3, 4, Eigen::RowMajor>> T_cam2base(T_cam2base_vec.data());
