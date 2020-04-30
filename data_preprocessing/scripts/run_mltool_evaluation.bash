@@ -14,21 +14,28 @@ SOURCE_DIR=$1
 OUTPUT_DIR=$2
 SESSIONS=$3
 TRAJECTORY_PATH=$4
+MAX_RANGES=( 5 20 )
 
 for session in $SESSIONS; do
-  printf -v SESSION_NUM_STR '%05d' "$session"
+  for range in "${MAX_RANGES[@]}"; do
+    printf -v SESSION_NUM_STR '%05d' "$session"
+    printf -v RANGE_NUM_STR '%d' "$range"
 
-  echo "*********************************"
-  echo "Generating Dataset Session $SESSION_NUM_STR"
-  echo "*********************************"
+    echo "*********************************"
+    echo "Evaluating ML Tool on Session $SESSION_NUM_STR for Max Range $RANGE_NUM_STR"
+    echo "*********************************"
 
-  ../bin/mltool_evaluation \
-  --session_num=$session \
-  --source_dir=$SOURCE_DIR \
-  --cam_extrinsics_path=$CAM_EXTRINSICS_PATH \
-  --output_dir=$OUTPUT_DIR \
-  --trajectory_path=$TRAJECTORY_PATH
+    printf -v RANGE_DIR '%s/range_%d' "$OUTPUT_DIR" "$range"
+    mkdir -p $RANGE_DIR
 
+    ../bin/mltool_evaluation \
+    --session_num=$session \
+    --source_dir=$SOURCE_DIR \
+    --cam_extrinsics_path=$CAM_EXTRINSICS_PATH \
+    --output_dir=$RANGE_DIR \
+    --trajectory_path=$TRAJECTORY_PATH \
+    --max_range=$range
+  done
 done
 
 

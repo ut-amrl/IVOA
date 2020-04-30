@@ -491,14 +491,14 @@ int main(int argc, char **argv) {
     
     Evaluator::ErrorHistogram histogram = evaluator.getAbsoluteDistanceErrorHistogram();
     ofstream hist_file;
-    hist_file.open("dist_error_histogram.csv");
+    hist_file.open(FLAGS_output_dir + "/" + "dist_error_histogram.csv");
     for(auto bucket : histogram.buckets) {
       hist_file << bucket.lower << ", " << bucket.upper << ", " << bucket.count << std::endl;
     }
     hist_file.close();
 
     ofstream hist_window_file;
-    hist_window_file.open("dist_error_histogram_windows.csv");
+    hist_window_file.open(FLAGS_output_dir + "/" + "dist_error_histogram_windows.csv");
     for(auto window : histogram.windows) {
       hist_window_file << window.pct << ", " << window.pos_bound << ", " << window.neg_bound << std::endl;
     }
@@ -506,14 +506,14 @@ int main(int argc, char **argv) {
 
     Evaluator::ErrorHistogram rel_histogram = evaluator.getRelativeDistanceErrorHistogram();
     ofstream rel_hist_file;
-    rel_hist_file.open("rel_dist_error_histogram.csv");
+    rel_hist_file.open(FLAGS_output_dir + "/" + "rel_dist_error_histogram.csv");
     for(auto bucket : rel_histogram.buckets) {
       rel_hist_file << bucket.lower << ", " << bucket.upper << ", " << bucket.count << std::endl;
     }
     rel_hist_file.close();
 
     ofstream rel_hist_window_file;
-    rel_hist_window_file.open("rel_dist_error_histogram_windows.csv");
+    rel_hist_window_file.open(FLAGS_output_dir + "/" + "rel_dist_error_histogram_windows.csv");
     for(auto window : rel_histogram.windows) {
       rel_hist_window_file << window.pct << ", " << window.pos_bound << ", " << window.neg_bound << std::endl;
     }
@@ -522,17 +522,19 @@ int main(int argc, char **argv) {
 
   std::vector<unsigned long int>prediction_label_counts;
   prediction_label_counts = evaluator.GetStatistics();
-  
-  std::cout << "FP count: " << 
-        prediction_label_counts[Evaluator::PredictionLabel::FP] << std::endl
-            << "FN count: " << 
-        prediction_label_counts[Evaluator::PredictionLabel::FN] << std::endl
-            << "TP count: " <<
-        prediction_label_counts[Evaluator::PredictionLabel::TP] << std::endl
-            << "TN count: " <<
-        prediction_label_counts[Evaluator::PredictionLabel::TN] << std::endl;
-        
 
+
+
+  ofstream stats_file;
+  stats_file.open(FLAGS_output_dir + "/" + "prediction_label_statistics.txt");
+
+  stats_file << "False Positives: " << prediction_label_counts[Evaluator::PredictionLabel::FP] << std::endl;
+  stats_file << "False Negatives: " << prediction_label_counts[Evaluator::PredictionLabel::FN] << std::endl;
+  stats_file << "True Positives: " << prediction_label_counts[Evaluator::PredictionLabel::TP] << std::endl;
+  stats_file << "True Negatives: " << prediction_label_counts[Evaluator::PredictionLabel::TN] << std::endl;
+
+  stats_file << "Total Examples: " << std::accumulate(prediction_label_counts.begin(), prediction_label_counts.end(), 0) << std::endl;
+  stats_file.close();
   return 0;
 }
 

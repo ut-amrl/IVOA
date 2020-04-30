@@ -1,14 +1,21 @@
 from matplotlib import pyplot as plt
 import random
+import argparse
+import os
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument('--dir', type=str, required=True, help='Directory to evaluation results')
+
+args = parser.parse_args()
 
 HISTOGRAMS = [
   ('Error Distance', 'dist_error_histogram.csv', 'dist_error_histogram_windows.csv'),
   ('Relative Error Distance', 'rel_dist_error_histogram.csv', 'rel_dist_error_histogram_windows.csv'),
-
 ]
 
 for name, histogram_file, window_file in HISTOGRAMS:
-  f = open(histogram_file)
+  f = open(os.path.join(args.dir, histogram_file))
   counts = []
   boundaries = []
 
@@ -22,7 +29,7 @@ for name, histogram_file, window_file in HISTOGRAMS:
 
   f.close()
 
-  window_f = open(window_file)
+  window_f = open(os.path.join(args.dir, window_file))
   windows = []
   for line in window_f.readlines():
     nums = line.split(', ')
