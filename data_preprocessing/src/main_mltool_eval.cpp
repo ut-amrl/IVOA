@@ -65,6 +65,7 @@ DEFINE_string(cam_extrinsics_path, "", "Path to the file containing the "
                                        "left camera calibration file.");
 DEFINE_string(trajectory_path, "", "Path to the trajectory file to use.");
 DEFINE_string(output_dir, "", "Path to save the generated results. ");
+DEFINE_double(max_range, 40.0, "Max range to consider for depth prediction evaluation");
 DECLARE_bool(help);
 DECLARE_bool(helpshort);
 
@@ -74,7 +75,6 @@ const bool kVisualization = true;
 
 // Objects that are further than max_range_ away from the agent will not be
 // considered for obstacle avoidance
-const float kMaxRange = 40.0; // meters
 const float kMinObstacleHeight = 0.3; // meters
 const float kMaxObstacleHeight = 2.0; // meters
 
@@ -319,14 +319,14 @@ int main(int argc, char **argv) {
                                                             kMinObstacleHeight,
                                                             kMaxObstacleHeight,
                                                             0,
-                                                            kMaxRange);
+                                                            FLAGS_max_range);
     
     pt_cloud_pred = depth_img_converter.FilterPointCloudByHeightAndDistance(
                                                             pt_cloud_pred,
                                                             kMinObstacleHeight,
                                                             kMaxObstacleHeight,
                                                             0,
-                                                            kMaxRange);
+                                                            FLAGS_max_range);
    
 
     
@@ -340,7 +340,7 @@ int main(int argc, char **argv) {
                                             kMaxAngleLaser,        
                                             kAngleIncrementLaser,  
                                             kMinRange,        
-                                            kMaxRange,
+                                            FLAGS_max_range,
                                             kMinObstacleHeight,
                                             kMaxObstacleHeight,
                                             &proj_ptcloud_pred);
@@ -352,7 +352,7 @@ int main(int argc, char **argv) {
                                             kMaxAngleLaser,        
                                             kAngleIncrementLaser,  
                                             kMinRange,        
-                                            kMaxRange,
+                                            FLAGS_max_range,
                                             kMinObstacleHeight,
                                             kMaxObstacleHeight,
                                             &proj_ptcloud_gt);
@@ -489,7 +489,7 @@ int main(int argc, char **argv) {
     pa.header.frame_id = "base_link";
     trajectory_publisher.publish(pa);
     
-    Evaluator::ErrorHistogram histogram = evaluator.getDistanceErrorHistogram();
+    Evaluator::ErrorHistogram histogram = evaluator.getAbsoluteDistanceErrorHistogram();
     ofstream hist_file;
     hist_file.open("dist_error_histogram.csv");
     for(auto bucket : histogram.buckets) {
@@ -503,6 +503,21 @@ int main(int argc, char **argv) {
       hist_window_file << window.pct << ", " << window.pos_bound << ", " << window.neg_bound << std::endl;
     }
     hist_window_file.close();
+
+    Evaluator::ErrorHistogram rel_histogram = evaluator.getRelativeDistanceErrorHistogram();
+    ofstream rel_hist_file;
+    rel_hist_file.open("rel_dist_error_histogram.csv");
+    for(auto bucket : rel_histogram.buckets) {
+      rel_hist_file << bucket.lower << ", " << bucket.upper << ", " << bucket.count << std::endl;
+    }
+    rel_hist_file.close();
+
+    ofstream rel_hist_window_file;
+    rel_hist_window_file.open("rel_dist_error_histogram_windows.csv");
+    for(auto window : rel_histogram.windows) {
+      rel_hist_window_file << window.pct << ", " << window.pos_bound << ", " << window.neg_bound << std::endl;
+    }
+    rel_hist_window_file.close();
   }
 
   std::vector<unsigned long int>prediction_label_counts;

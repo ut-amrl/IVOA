@@ -102,7 +102,7 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
     
     fp_scan_.time_increment = fn_scan_.time_increment = 0;
     fp_scan_.scan_time = fn_scan_.scan_time = 0;
-    vector<float> init_ranges(gt_scan.ranges.size(), 2 * gt_scan.range_max);
+    vector<float> init_ranges(gt_scan.ranges.size(), gt_scan.range_max + std::numeric_limits<float>::min() * 2.0f);
     fp_scan_.ranges = fn_scan_.ranges = init_ranges;
   }
   
@@ -123,9 +123,11 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
     bool error_found = false;
     PredictionLabel error_type;
     float dist_err = gt_scan.ranges[i] - pred_scan.ranges[i];
+    float rel_dist_err = dist_err / gt_scan.ranges[i];
     float rel_err_thresh = rel_distance_err_thresh_ * gt_scan.ranges[i];
     dist_errors_.push_back(dist_err);
-    
+    rel_dist_errors_.push_back(rel_dist_err);
+
     if (dist_err > std::max(distance_err_thresh_, rel_err_thresh)) {
       // FP
       prediction_label_counts_[FP]++;
@@ -303,24 +305,24 @@ Eigen::Vector2f Evaluator::ProjectToCam(
   return projection.head(2);
 }
 
-Evaluator::ContainmentWindow Evaluator::getContainmentWindow(float pct) {
-  float min = dist_errors_.front();
-  float max = dist_errors_.back();
-
+Evaluator::ContainmentWindow getContainmentWindow(std::vector<float> distances, float pct) {
+  float min = distances.front();
+  float max = distances.back();
+  
   // binary search for central X% stuff
   float max_dist = max;
   float min_dist = 0.0f;
-  float EPSILON = 0.01;
+  float EPSILON = 1e-3;
   float distance;
   
-  ContainmentWindow window;
+  Evaluator::ContainmentWindow window;
   window.pct = pct;
   std::vector<float> filtered;
 
   std::vector<float> positive;
-  std::copy_if (dist_errors_.begin(), dist_errors_.end(), std::back_inserter(positive), [](float d){ return d > 0;} );
+  std::copy_if (distances.begin(), distances.end(), std::back_inserter(positive), [](float d){ return d > 0;} );
 
-  while(std::abs((float)filtered.size() / positive.size() - pct) > EPSILON && max_dist - min_dist > EPSILON) {
+  while(max_dist - min_dist > EPSILON) {
     filtered.clear();
     distance = min_dist + (max_dist - min_dist) / 2.0f;
     std::copy_if (positive.begin(), positive.end(), std::back_inserter(filtered), [distance](float d){ return d < distance;} );
@@ -328,6 +330,8 @@ Evaluator::ContainmentWindow Evaluator::getContainmentWindow(float pct) {
       max_dist = distance;
     } else if (filtered.size() < positive.size() * pct - EPSILON) {
       min_dist = distance;
+    } else {
+      break;
     }
   }
 
@@ -338,16 +342,19 @@ Evaluator::ContainmentWindow Evaluator::getContainmentWindow(float pct) {
   filtered.clear();
 
   std::vector<float> negative;
-  std::copy_if (dist_errors_.begin(), dist_errors_.end(), std::back_inserter(negative), [](float d){ return d < 0;} );
+  std::copy_if (distances.begin(), distances.end(), std::back_inserter(negative), [](float d){ return d < 0;} );
 
-  while(std::abs((float)filtered.size() / negative.size() - pct) > EPSILON && max_dist - min_dist > EPSILON) {
+  while(max_dist - min_dist > EPSILON) {
     filtered.clear();
     distance = min_dist + (max_dist - min_dist) / 2.0f;
     std::copy_if (negative.begin(), negative.end(), std::back_inserter(filtered), [distance](float d){ return d > distance;} );
+
     if (filtered.size() > negative.size() * pct + EPSILON) {
       min_dist = distance;
     } else if (filtered.size() < negative.size() * pct - EPSILON) {
       max_dist = distance;
+    } else {
+      break;
     }
   }
   window.neg_bound = distance;
@@ -355,24 +362,26 @@ Evaluator::ContainmentWindow Evaluator::getContainmentWindow(float pct) {
   return window;
 }
 
-Evaluator::ErrorHistogram Evaluator::getDistanceErrorHistogram() {
-  std::sort(dist_errors_.begin(), dist_errors_.end());
+Evaluator::ErrorHistogram getDistanceErrorHistogram(std::vector<float> error_distances) {
+  std::sort(error_distances.begin(), error_distances.end());
+  float min = error_distances.front();
+  float max = error_distances.back();
 
-  ErrorHistogram histogram;
-  int num_buckets = (HISTOGRAM_MAX - HISTOGRAM_MIN) / HISTOGRAM_BUCKET_SIZE;
-  std::vector<HistogramBucket> buckets(num_buckets);
+  Evaluator::ErrorHistogram histogram;
+  int num_buckets = (max - min) / Evaluator::HISTOGRAM_BUCKET_SIZE;
+  std::vector<Evaluator::HistogramBucket> buckets(num_buckets);
 
-  int lower = HISTOGRAM_MIN;
+  int lower = min;
   for(unsigned int bucket_idx = 0; bucket_idx < num_buckets; bucket_idx++) {
     buckets[bucket_idx].lower = lower;
-    buckets[bucket_idx].upper = lower + HISTOGRAM_BUCKET_SIZE;
+    buckets[bucket_idx].upper = lower + Evaluator::HISTOGRAM_BUCKET_SIZE;
     buckets[bucket_idx].count = 0;
-    lower += HISTOGRAM_BUCKET_SIZE;
+    lower += Evaluator::HISTOGRAM_BUCKET_SIZE;
   }
 
   unsigned int bucket_idx = 0;
-  for(unsigned int i = 0; i < dist_errors_.size(); i++) {
-    while (dist_errors_[i] > buckets[bucket_idx].upper) {
+  for(unsigned int i = 0; i < error_distances.size(); i++) {
+    while (error_distances[i] >= buckets[bucket_idx].upper) {
       bucket_idx++;
     }
 
@@ -382,11 +391,19 @@ Evaluator::ErrorHistogram Evaluator::getDistanceErrorHistogram() {
   histogram.buckets = buckets;
 
   for (float pct : Evaluator::PCT_WINDOWS) {
-    ContainmentWindow window = getContainmentWindow(pct);
+    Evaluator::ContainmentWindow window = getContainmentWindow(error_distances, pct);
     histogram.windows.push_back(window);
   }
 
   return histogram;
+}
+
+Evaluator::ErrorHistogram Evaluator::getAbsoluteDistanceErrorHistogram() {
+  return getDistanceErrorHistogram(dist_errors_);
+}
+
+Evaluator::ErrorHistogram Evaluator::getRelativeDistanceErrorHistogram() {
+  return getDistanceErrorHistogram(rel_dist_errors_);
 }
 
 } // namespace IVOA

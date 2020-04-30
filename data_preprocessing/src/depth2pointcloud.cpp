@@ -28,6 +28,8 @@ using Eigen::Map;
 using std::cout;
 using std::endl;
 
+const int EPSILON = 1e-5;
+
 namespace IVOA {
 Depth2Pointcloud::Depth2Pointcloud() {
   T_cam2base_ = Matrix4f::Identity();
@@ -129,7 +131,7 @@ bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
   proj_ptcloud->range_max = range_max;
   proj_ptcloud->range_min = range_min;
   for (int i = 0; i < laserscan_size; i++) {
-    proj_ptcloud->ranges[i] = 2 * range_max;
+    proj_ptcloud->ranges[i] = range_max + std::numeric_limits<float>::min() * 2.0f;
   }
   
   for (int y = img_margin; y < depth_img.rows - img_margin; y++) {

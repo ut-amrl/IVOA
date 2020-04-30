@@ -103,9 +103,10 @@ class Evaluator{
   std::vector<std::vector<Error>> GetErrors();
   std::vector<ErrorTrack> GetErrorTracks();
 
-  ErrorHistogram getDistanceErrorHistogram();
-  ContainmentWindow getContainmentWindow(float pct);
+  ErrorHistogram getAbsoluteDistanceErrorHistogram();
+  ErrorHistogram getRelativeDistanceErrorHistogram();
   static const std::vector<float> PCT_WINDOWS;
+  static const int HISTOGRAM_BUCKET_SIZE = 1;
  private:
   
   // Given the 3D location of a pair of points from the predicted depth and 
@@ -126,6 +127,7 @@ class Evaluator{
   
   std::vector<unsigned long int>prediction_label_counts_;
   std::vector<float> dist_errors_;
+  std::vector<float> rel_dist_errors_;
   unsigned long int frame_count = 0;
   std::vector<std::vector<Error>> errors_list_;
   std::vector<ErrorTrack> error_tracks_;
@@ -159,9 +161,6 @@ class Evaluator{
 
   static const unsigned int MAX_ERROR_TRACK_GAP=5;
   static constexpr float MAX_ERROR_TRACK_MAP_DISTANCE=3.0f;
-  static const int HISTOGRAM_MIN = -80;
-  static const int HISTOGRAM_MAX = 80;
-  static const int HISTOGRAM_BUCKET_SIZE = 5;
 };
 
 } // namespace IVOA
