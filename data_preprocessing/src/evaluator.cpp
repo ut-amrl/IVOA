@@ -32,7 +32,9 @@ using std::endl;
 #define DEBUG false
 
 namespace IVOA {
-  
+
+const std::vector<float> Evaluator::PCT_WINDOWS = {0.3f, 0.5f, 0.7f};
+
 Evaluator::Evaluator(float distance_err_thresh,
                      float rel_distance_err_thresh,
                      bool debug_mode):
@@ -301,36 +303,89 @@ Eigen::Vector2f Evaluator::ProjectToCam(
   return projection.head(2);
 }
 
-std::vector<Evaluator::HistogramBucket> Evaluator::getDistanceErrorHistogram() {
-  std::sort(dist_errors_.begin(), dist_errors_.end());
+Evaluator::ContainmentWindow Evaluator::getContainmentWindow(float pct) {
   float min = dist_errors_.front();
   float max = dist_errors_.back();
 
-  float bucketSize = (max - min) / Evaluator::HISTOGRAM_BUCKET_COUNT;
+  // binary search for central X% stuff
+  float max_dist = max;
+  float min_dist = 0.0f;
+  float EPSILON = 0.01;
+  float distance;
+  
+  ContainmentWindow window;
+  window.pct = pct;
+  std::vector<float> filtered;
 
-  std::vector<HistogramBucket> histogram(Evaluator::HISTOGRAM_BUCKET_COUNT);
+  std::vector<float> positive;
+  std::copy_if (dist_errors_.begin(), dist_errors_.end(), std::back_inserter(positive), [](float d){ return d > 0;} );
 
-  float lower = min;
-  for(int bucket_idx = 0; bucket_idx < Evaluator::HISTOGRAM_BUCKET_COUNT; bucket_idx++) {
-    histogram[bucket_idx].lower = lower;
-    histogram[bucket_idx].upper = lower + bucketSize;
-    histogram[bucket_idx].count = 0;
-    lower += bucketSize;
+  while(std::abs((float)filtered.size() / positive.size() - pct) > EPSILON && max_dist - min_dist > EPSILON) {
+    filtered.clear();
+    distance = min_dist + (max_dist - min_dist) / 2.0f;
+    std::copy_if (positive.begin(), positive.end(), std::back_inserter(filtered), [distance](float d){ return d < distance;} );
+    if (filtered.size() > positive.size() * pct + EPSILON) {
+      max_dist = distance;
+    } else if (filtered.size() < positive.size() * pct - EPSILON) {
+      min_dist = distance;
+    }
   }
 
-  int bucket_idx = 0;
-  for(int i = 0; i < dist_errors_.size(); i++) {
-    while (dist_errors_[i] > histogram[bucket_idx].upper) {
+  window.pos_bound = distance;
+
+  max_dist = 0.0f;
+  min_dist = min;
+  filtered.clear();
+
+  std::vector<float> negative;
+  std::copy_if (dist_errors_.begin(), dist_errors_.end(), std::back_inserter(negative), [](float d){ return d < 0;} );
+
+  while(std::abs((float)filtered.size() / negative.size() - pct) > EPSILON && max_dist - min_dist > EPSILON) {
+    filtered.clear();
+    distance = min_dist + (max_dist - min_dist) / 2.0f;
+    std::copy_if (negative.begin(), negative.end(), std::back_inserter(filtered), [distance](float d){ return d > distance;} );
+    if (filtered.size() > negative.size() * pct + EPSILON) {
+      min_dist = distance;
+    } else if (filtered.size() < negative.size() * pct - EPSILON) {
+      max_dist = distance;
+    }
+  }
+  window.neg_bound = distance;
+
+  return window;
+}
+
+Evaluator::ErrorHistogram Evaluator::getDistanceErrorHistogram() {
+  std::sort(dist_errors_.begin(), dist_errors_.end());
+
+  ErrorHistogram histogram;
+  int num_buckets = (HISTOGRAM_MAX - HISTOGRAM_MIN) / HISTOGRAM_BUCKET_SIZE;
+  std::vector<HistogramBucket> buckets(num_buckets);
+
+  int lower = HISTOGRAM_MIN;
+  for(unsigned int bucket_idx = 0; bucket_idx < num_buckets; bucket_idx++) {
+    buckets[bucket_idx].lower = lower;
+    buckets[bucket_idx].upper = lower + HISTOGRAM_BUCKET_SIZE;
+    buckets[bucket_idx].count = 0;
+    lower += HISTOGRAM_BUCKET_SIZE;
+  }
+
+  unsigned int bucket_idx = 0;
+  for(unsigned int i = 0; i < dist_errors_.size(); i++) {
+    while (dist_errors_[i] > buckets[bucket_idx].upper) {
       bucket_idx++;
     }
 
-    histogram[bucket_idx].count++;
+    buckets[bucket_idx].count++;
+  }
+  
+  histogram.buckets = buckets;
+
+  for (float pct : Evaluator::PCT_WINDOWS) {
+    ContainmentWindow window = getContainmentWindow(pct);
+    histogram.windows.push_back(window);
   }
 
-  // printf("Created Histogram with %d buckets\n", histogram.size());
-  // for(auto bucket : histogram) {
-  //   printf("Bucket (%f, %f): %ld\n", bucket.lower, bucket.upper, bucket.count);
-  // }
   return histogram;
 }
 

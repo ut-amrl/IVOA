@@ -76,6 +76,17 @@ class Evaluator{
     unsigned long int count;
   };
 
+  struct ContainmentWindow {
+    float pct;
+    float pos_bound;
+    float neg_bound;
+  };
+
+  struct ErrorHistogram {
+    std::vector<HistogramBucket> buckets;
+    std::vector<ContainmentWindow> windows;
+  };
+
   int LoadCameraCalibration(const std::string extrinsics_file);
   // Returns the index in the errors_list_ of this evaluation
   unsigned int EvaluatePredictions(const ProjectedPtCloud& pred_scan,
@@ -92,8 +103,9 @@ class Evaluator{
   std::vector<std::vector<Error>> GetErrors();
   std::vector<ErrorTrack> GetErrorTracks();
 
-  std::vector<HistogramBucket> getDistanceErrorHistogram();
-  
+  ErrorHistogram getDistanceErrorHistogram();
+  ContainmentWindow getContainmentWindow(float pct);
+  static const std::vector<float> PCT_WINDOWS;
  private:
   
   // Given the 3D location of a pair of points from the predicted depth and 
@@ -147,9 +159,11 @@ class Evaluator{
 
   static const unsigned int MAX_ERROR_TRACK_GAP=5;
   static constexpr float MAX_ERROR_TRACK_MAP_DISTANCE=3.0f;
-  static const unsigned int HISTOGRAM_BUCKET_COUNT = 30;
+  static const int HISTOGRAM_MIN = -80;
+  static const int HISTOGRAM_MAX = 80;
+  static const int HISTOGRAM_BUCKET_SIZE = 5;
 };
+
 } // namespace IVOA
 
 #endif // IVOA_EVALUATOR_
-

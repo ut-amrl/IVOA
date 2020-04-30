@@ -489,13 +489,20 @@ int main(int argc, char **argv) {
     pa.header.frame_id = "base_link";
     trajectory_publisher.publish(pa);
     
-    std::vector<Evaluator::HistogramBucket> histogram = evaluator.getDistanceErrorHistogram();
+    Evaluator::ErrorHistogram histogram = evaluator.getDistanceErrorHistogram();
     ofstream hist_file;
     hist_file.open("dist_error_histogram.csv");
-    for(auto bucket : histogram) {
+    for(auto bucket : histogram.buckets) {
       hist_file << bucket.lower << ", " << bucket.upper << ", " << bucket.count << std::endl;
     }
     hist_file.close();
+
+    ofstream hist_window_file;
+    hist_window_file.open("dist_error_histogram_windows.csv");
+    for(auto window : histogram.windows) {
+      hist_window_file << window.pct << ", " << window.pos_bound << ", " << window.neg_bound << std::endl;
+    }
+    hist_window_file.close();
   }
 
   std::vector<unsigned long int>prediction_label_counts;
