@@ -6,7 +6,7 @@ import os
 parser = argparse.ArgumentParser()
 
 parser.add_argument('--dir', type=str, required=True, help='Directory to evaluation results')
-
+parser.add_argument('--plot_windows', action='store_true')
 args = parser.parse_args()
 
 HISTOGRAMS = [
@@ -50,10 +50,11 @@ for name, histogram_file, window_file in HISTOGRAMS:
   plt.xlabel(name)
   plt.ylabel('Count')
 
-  for window in windows:
-    # only label 1 so legend doesn't have duplicates
-    plt.axvline(window[2], color=window[1], linestyle='dashed', linewidth=1, label=window[0])
-    plt.axvline(window[3], color=window[1], linestyle='dashed', linewidth=1)
+  if args.plot_windows:
+    for window in windows:
+      # only label 1 so legend doesn't have duplicates
+      plt.axvline(window[2], color=window[1], linestyle='dashed', linewidth=1, label=window[0])
+      plt.axvline(window[3], color=window[1], linestyle='dashed', linewidth=1)
 
   plt.legend()
   plt.show()

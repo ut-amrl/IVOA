@@ -126,7 +126,7 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
     float dist_err = gt_scan.ranges[i] - pred_scan.ranges[i];
     float rel_dist_err = dist_err / gt_scan.ranges[i];
     float rel_err_thresh = rel_distance_err_thresh_ * gt_scan.ranges[i];
-    dist_errors_.push_back(dist_err);
+    dist_errors_.push_back(-dist_err); // for visualization we want prediction-actual
     rel_dist_errors_.push_back(rel_dist_err);
 
     if (dist_err > std::max(distance_err_thresh_, rel_err_thresh)) {
