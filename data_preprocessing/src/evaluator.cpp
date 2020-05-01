@@ -362,7 +362,7 @@ Evaluator::ContainmentWindow getContainmentWindow(std::vector<float> distances, 
   return window;
 }
 
-Evaluator::ErrorHistogram getDistanceErrorHistogram(std::vector<float> error_distances) {
+Evaluator::ErrorHistogram getDistanceErrorHistogram(std::vector<float> error_distances, bool compute_windows) {
   std::sort(error_distances.begin(), error_distances.end());
   float min = error_distances.front();
   float max = error_distances.back();
@@ -390,20 +390,28 @@ Evaluator::ErrorHistogram getDistanceErrorHistogram(std::vector<float> error_dis
   
   histogram.buckets = buckets;
 
-  for (float pct : Evaluator::PCT_WINDOWS) {
-    Evaluator::ContainmentWindow window = getContainmentWindow(error_distances, pct);
-    histogram.windows.push_back(window);
+  if (compute_windows) {
+    for (float pct : Evaluator::PCT_WINDOWS) {
+      Evaluator::ContainmentWindow window = getContainmentWindow(error_distances, pct);
+      histogram.windows.push_back(window);
+    }
   }
 
   return histogram;
 }
 
 Evaluator::ErrorHistogram Evaluator::getAbsoluteDistanceErrorHistogram() {
-  return getDistanceErrorHistogram(dist_errors_);
+  return getDistanceErrorHistogram(dist_errors_, true);
 }
 
 Evaluator::ErrorHistogram Evaluator::getRelativeDistanceErrorHistogram() {
-  return getDistanceErrorHistogram(rel_dist_errors_);
+  return getDistanceErrorHistogram(rel_dist_errors_, true);
+}
+
+Evaluator::ErrorHistogram Evaluator::getErrorTrackSizeHistogram() {
+  std::vector<float> sizes(error_tracks_.size());
+  std::generate(sizes.begin(), sizes.end(), [this, n=0] () mutable { return error_tracks_[n++].loc_map_history.size(); });
+  return getDistanceErrorHistogram(sizes, false);
 }
 
 } // namespace IVOA

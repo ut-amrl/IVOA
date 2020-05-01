@@ -49,6 +49,10 @@
 #include "evaluator.h"
 #include "cnpy.h"
 
+#include <pcl/common/transforms.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_types.h>
+
 using cv::Mat;
 using namespace std;
 using namespace IVOA;
@@ -211,6 +215,8 @@ int main(int argc, char **argv) {
       nh.advertise<sensor_msgs::LaserScan>("/ivoa/fp_laserscan", 1);
   ros::Publisher fn_laserscan_publisher =
       nh.advertise<sensor_msgs::LaserScan>("/ivoa/fn_laserscan", 1);
+  ros::Publisher point_cloud_publisher_gt_global =
+      nh.advertise<sensor_msgs::PointCloud2>("/ivoa/gt_global", 1);
 
   ros::Publisher error_track_publisher =
       nh.advertise<visualization_msgs::MarkerArray>("/ivoa/error_tracks", 1);
@@ -313,6 +319,24 @@ int main(int argc, char **argv) {
       point_cloud_publisher_pred.publish(pt_cloud_pred);
     }
     
+    std::pair<Eigen::Vector3f, Eigen::Quaternion<float>> pose = trajectory[idx];
+    // std::cout << "POSE: " << pose.first.transpose() << std::endl;
+    // std::cout << "ORIENTATION: " << pose.second.transpose() << std::endl;
+    Eigen::Matrix4f T_base2map;
+    T_base2map.setIdentity();
+    T_base2map.block<3,3>(0,0) = pose.second.toRotationMatrix();
+    T_base2map.block<3,1>(0,3) = pose.first;
+
+    if (kVisualization) {
+      sensor_msgs::PointCloud2 pt_cloud_gt_global;
+      pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud_gt(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud_gt_global(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::fromROSMsg(pt_cloud_gt, *pcl_cloud_gt);
+      pcl::transformPointCloud(*pcl_cloud_gt, *pcl_cloud_gt_global, T_base2map);
+      pcl::toROSMsg(*pcl_cloud_gt_global, pt_cloud_gt_global);
+      point_cloud_publisher_gt_global.publish(pt_cloud_gt_global);
+    }
+    
     // Filter point clouds by height and range
     pt_cloud_gt = depth_img_converter.FilterPointCloudByHeightAndDistance(
                                                             pt_cloud_gt,
@@ -327,9 +351,6 @@ int main(int argc, char **argv) {
                                                             kMaxObstacleHeight,
                                                             0,
                                                             FLAGS_max_range);
-   
-
-    
 
     ProjectedPtCloud proj_ptcloud_pred;
     ProjectedPtCloud proj_ptcloud_gt;
@@ -357,16 +378,6 @@ int main(int argc, char **argv) {
                                             kMaxObstacleHeight,
                                             &proj_ptcloud_gt);
     
-    // TODO: T_base2map (transformation from base_link to map) should be  
-    // set from the loaded car trajectory and set accordingly.
-    std::pair<Eigen::Vector3f, Eigen::Quaternion<float>> pose = trajectory[idx];
-    // std::cout << "POSE: " << pose.first.transpose() << std::endl;
-    // std::cout << "ORIENTATION: " << pose.second.transpose() << std::endl;
-    Eigen::Matrix4f T_base2map;
-    T_base2map.setIdentity();
-    T_base2map.block<3,3>(0,0) = pose.second.toRotationMatrix();
-    T_base2map.block<3,1>(0,3) = pose.first;
-    
     // std::cout << "Transformation: \n" << T_base2map << std::endl;
 
     unsigned int errors_idx = evaluator.EvaluatePredictions(proj_ptcloud_pred,
@@ -381,7 +392,7 @@ int main(int argc, char **argv) {
     if (kVisualization) {
       point_cloud_publisher_gt_filt.publish(pt_cloud_gt);
       point_cloud_publisher_pred_filt.publish(pt_cloud_pred);
-      
+
       sensor_msgs::LaserScan laserscan_gt = 
             depth_img_converter.ProjectedPtCloud_to_LaserScan(proj_ptcloud_gt);
       sensor_msgs::LaserScan laserscan_pred = 
@@ -414,25 +425,16 @@ int main(int argc, char **argv) {
       Mat left_img_annotated = cv::imread(left_img_path,CV_LOAD_IMAGE_UNCHANGED);
       
       for(Evaluator::Error e : errors) {
-        // int lower_x = max(int(e.pixel_coord.x() - kVisualizationErrorSize), 0);
-        // int upper_x = min(int(e.pixel_coord.x() + kVisualizationErrorSize), left_img_annotated.size().width);
-        // int lower_y = max(int(e.pixel_coord.y() - kVisualizationErrorSize), 0);
-        // int upper_y = min(int(e.pixel_coord.y() + kVisualizationErrorSize), left_img_annotated.size().height);
-
-        // for(int x = lower_x; x <= upper_x; x++) {
-        //   for(int y = lower_y; y <= upper_y; y++) {
-            cv::Vec3b & color = left_img_annotated.at<cv::Vec3b>(e.pixel_coord.y(), e.pixel_coord.x());
-            if (e.error_type == Evaluator::PredictionLabel::FP) {
-              color[0] = 255;
-              color[1] = 0;
-              color[2] = 0;
-            } else {
-              color[2] = 255;
-              color[1] = 0;
-              color[0] = 0;
-            }
-          // }
-        // }
+        cv::Vec3b & color = left_img_annotated.at<cv::Vec3b>(e.pixel_coord.y(), e.pixel_coord.x());
+        if (e.error_type == Evaluator::PredictionLabel::FP) {
+          color[0] = 255;
+          color[1] = 0;
+          color[2] = 0;
+        } else {
+          color[2] = 255;
+          color[1] = 0;
+          color[0] = 0;
+        }
       }
       #if DEBUG
       cout << "img num: " << i << endl;
@@ -488,6 +490,14 @@ int main(int argc, char **argv) {
 
     pa.header.frame_id = "base_link";
     trajectory_publisher.publish(pa);
+    
+    Evaluator::ErrorHistogram track_hist = evaluator.getErrorTrackSizeHistogram();
+    ofstream track_file;
+    track_file.open(FLAGS_output_dir + "/" + "error_track_size_histogram.csv");
+    for(auto bucket : track_hist.buckets) {
+      track_file << bucket.lower << ", " << bucket.upper << ", " << bucket.count << std::endl;
+    }
+    track_file.close();
     
     Evaluator::ErrorHistogram histogram = evaluator.getAbsoluteDistanceErrorHistogram();
     ofstream hist_file;
