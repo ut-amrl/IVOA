@@ -53,6 +53,8 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
 
+// #define DEBUG 1
+
 using cv::Mat;
 using namespace std;
 using namespace IVOA;
@@ -255,6 +257,16 @@ int main(int argc, char **argv) {
 
   // If this isn't true, we likely aren't using the correct pruned trajectory
   CHECK_EQ(trajectory.size(), filename_prefixes.size());
+  
+  
+  // Transform from NED to the ROS standard 
+  Eigen::Matrix4f T_NED2ROS = Eigen::Matrix4f::Identity();
+  Eigen::Matrix4f T_ROS2NED = Eigen::Matrix4f::Identity();
+  T_NED2ROS << 1.0000000,  0.0000000,  0.0000000, 0.0000000,
+                0.0000000, -1.0000000, -0.0000000, 0.0000000,
+                0.0000000,  0.0000000, -1.0000000, 0.0000000,
+                0.0000000,  0.0000000,  0.0000000, 1.0000000;
+  T_ROS2NED = T_NED2ROS;
 
   
   int count = 0;
@@ -316,10 +328,17 @@ int main(int argc, char **argv) {
     std::pair<Eigen::Vector3f, Eigen::Quaternion<float>> pose = trajectory[idx];
     // std::cout << "POSE: " << pose.first.transpose() << std::endl;
     // std::cout << "ORIENTATION: " << pose.second.transpose() << std::endl;
+    Eigen::Matrix4f T_baseNED2mapNED;
+    T_baseNED2mapNED.setIdentity();
+    T_baseNED2mapNED.block<3,3>(0,0) = pose.second.toRotationMatrix();
+    T_baseNED2mapNED.block<3,1>(0,3) = pose.first;
+    
+    // Transformation from the base link in the standard ROS coordinate to 
+    // the map reference frame which is also in the standard ROS coordinate
+    // (forward: x, left: y, up: z)
     Eigen::Matrix4f T_base2map;
     T_base2map.setIdentity();
-    T_base2map.block<3,3>(0,0) = pose.second.toRotationMatrix();
-    T_base2map.block<3,1>(0,3) = pose.first;
+    T_base2map = T_NED2ROS * T_baseNED2mapNED * T_ROS2NED; 
 
     if (kVisualization) {
       sensor_msgs::PointCloud2 pt_cloud_gt_global;
@@ -392,19 +411,24 @@ int main(int argc, char **argv) {
       
       fp_laserscan_publisher.publish(evaluator.GetFalsePositivesScan());
       fn_laserscan_publisher.publish(evaluator.GetFalseNegativesScan());
+      
+      // Convert from NED to ROS standard
+      Eigen::Matrix3f rot_base2map;
+      rot_base2map = T_base2map.topLeftCorner(3,3);
+      Eigen::Quaternion<float> quat_base2map(rot_base2map);
 
       geometry_msgs::PoseStamped pose_msg;
 
       pose_msg.header.stamp = ros::Time::now();
       pose_msg.header.frame_id = "base_link";
-      pose_msg.pose.position.x = pose.first.x();
-      pose_msg.pose.position.y = pose.first.y();
-      pose_msg.pose.position.z = pose.first.z();
+      pose_msg.pose.position.x = T_base2map(0,3);
+      pose_msg.pose.position.y = T_base2map(1,3);
+      pose_msg.pose.position.z = T_base2map(2,3);
 
-      pose_msg.pose.orientation.x = pose.second.x();
-      pose_msg.pose.orientation.y = pose.second.y();
-      pose_msg.pose.orientation.z = pose.second.z();
-      pose_msg.pose.orientation.w = pose.second.w();
+      pose_msg.pose.orientation.x = quat_base2map.x();
+      pose_msg.pose.orientation.y = quat_base2map.y();
+      pose_msg.pose.orientation.z = quat_base2map.z();
+      pose_msg.pose.orientation.w = quat_base2map.w();
 
       pa.poses.push_back(pose_msg.pose);
       pose_publisher.publish(pose_msg);
