@@ -93,7 +93,7 @@ const float kRelativeDistanceErrThresh = 0.0; // ratio in [0, 1]
 
 // TODO: Should kMarginWidth be a command line argument?
 // Remove depth predictions in the margins of the depth image
-const int kMarginWidth = 150;
+const int kMarginWidth = 200;
 
 // TODO: Load camera intrinsics from file as well, so that the scaled down 
 // version of depth predictions could be supported
@@ -392,7 +392,8 @@ int main(int argc, char **argv) {
     unsigned int errors_idx = evaluator.EvaluatePredictions(proj_ptcloud_pred,
                                   proj_ptcloud_gt,
                                   T_base2map,
-                                  static_cast<long unsigned int>(i));  
+                                  static_cast<long unsigned int>(i),
+                                  depth_img_gt);  
     
     std::vector<Evaluator::Error> errors = evaluator.GetErrors()[errors_idx];
     // std::cout << "Example error location: " << errors[0].loc_map.transpose() << std::endl;

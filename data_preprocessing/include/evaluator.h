@@ -92,7 +92,8 @@ class Evaluator{
   unsigned int EvaluatePredictions(const ProjectedPtCloud& pred_scan,
                            const ProjectedPtCloud& gt_scan,
                            const Eigen::Matrix4f& T_base2map,
-                           const unsigned long int& frame_id);
+                           const unsigned long int& frame_id,
+                           const cv::Mat &depth_img_gt);
  
   std::vector<unsigned long int> GetStatistics();
   
@@ -120,12 +121,15 @@ class Evaluator{
                    const Eigen::Vector3f& gt_loc_in_cam,
                    PredictionLabel error_type,
                    const Eigen::Matrix4f& T_base2map,
+                   const cv::Mat &depth_img_gt,
                    Eigen::Vector3f* err_loc_map,
                    Eigen::Vector2f* err_pixel_coord);
   
   // Projects a 3D point that is in the reference frame of the camera to the
   // image plane
   Eigen::Vector2f ProjectToCam(const Eigen::Vector3f& point_3d_in_cam_ref);
+  
+  Eigen::Vector3f Calculate3DCoord(int u, int v, float raw_depth);
   
   std::vector<unsigned long int>prediction_label_counts_;
   std::vector<float> dist_errors_;

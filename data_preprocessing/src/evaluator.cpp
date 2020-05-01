@@ -84,7 +84,8 @@ int Evaluator::LoadCameraCalibration(
 unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
                                     const ProjectedPtCloud& gt_scan,
                                     const Eigen::Matrix4f& T_base2map,
-                                    const unsigned long int& frame_id) {
+                                    const unsigned long int& frame_id,
+                                    const cv::Mat &depth_img_gt) {
   CHECK_EQ(pred_scan.ranges.size(), gt_scan.ranges.size());
   
   // Populate the error laser scans in debug mode
@@ -157,6 +158,7 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
                    gt_scan.points[i],
                    error_type,
                    T_base2map,
+                   depth_img_gt,
                    &error_loc_in_map,
                    &error_pixel_coord);
 
@@ -267,18 +269,23 @@ void Evaluator::LocateError(const Eigen::Vector3f& pred_loc_in_cam,
                    const Eigen::Vector3f& gt_loc_in_cam,
                    PredictionLabel error_type,
                    const Eigen::Matrix4f& T_base2map,
+                   const cv::Mat &depth_img_gt,
                    Eigen::Vector3f* err_loc_map,
                    Eigen::Vector2f* err_pixel_coord) {
   Vector3f pt_of_interest;
   if (error_type == FP) {
-    pt_of_interest = pred_loc_in_cam;
+    *err_pixel_coord = ProjectToCam(pred_loc_in_cam); 
+    int u = static_cast<int>(err_pixel_coord->x());
+    int v = static_cast<int>(err_pixel_coord->y());
+    pt_of_interest = Calculate3DCoord(u, v, depth_img_gt.at<float>(v, u));
   } else if (error_type == FN) {
     pt_of_interest = gt_loc_in_cam;
+    *err_pixel_coord = ProjectToCam(gt_loc_in_cam);
   } else {
     LOG(FATAL) << "Unknown error type!";
   }
   
-  *err_pixel_coord = ProjectToCam(pt_of_interest);
+  
   
   if (!calibration_is_loaded_) {
     LOG(FATAL) << "Camera calibration was not provided!";
@@ -303,6 +310,24 @@ Eigen::Vector2f Evaluator::ProjectToCam(
   }
   Vector3f projection = (cam_mat_ * point_3d_in_cam_ref)/point_3d_in_cam_ref(2);
   return projection.head(2);
+}
+
+Eigen::Vector3f Evaluator::Calculate3DCoord(int u,
+                                            int v,
+                                            float raw_depth) {
+  // Reconstruct 3D point from x, y, raw_depth.
+  Vector3f point;
+
+  double depth = static_cast<double>(raw_depth);
+
+  // Calculate the 3D coordinates of the point in the optical reference frame
+  // of the camera (x points to the right of the image, y to the bottom and z
+  // points into the image plane)
+  point.x() = (u - px_) * depth / fx_;
+  point.y() = (v - py_) * depth / fy_;
+  point.z() = depth;
+
+  return point;
 }
 
 Evaluator::ContainmentWindow getContainmentWindow(std::vector<float> distances, float pct) {
