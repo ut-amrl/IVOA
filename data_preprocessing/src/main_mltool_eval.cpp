@@ -53,7 +53,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
 
-#define DEBUG 1
+#define DEBUG 0
 
 using cv::Mat;
 using namespace std;
@@ -439,25 +439,16 @@ int main(int argc, char **argv) {
       Mat left_img_annotated = cv::imread(left_img_path,CV_LOAD_IMAGE_UNCHANGED);
       
       for(Evaluator::Error e : errors) {
-        int lower_x = max(int(e.pixel_coord.x() - kVisualizationErrorSize), 0);
-        int upper_x = min(int(e.pixel_coord.x() + kVisualizationErrorSize), left_img_annotated.size().width);
-        int lower_y = max(int(e.pixel_coord.y() - kVisualizationErrorSize), 0);
-        int upper_y = min(int(e.pixel_coord.y() + kVisualizationErrorSize), left_img_annotated.size().height);
-        for(int x = lower_x; x <= upper_x; x++) {
-          for(int y = lower_y; y <= upper_y; y++) {
-            cv::Vec3b & color = left_img_annotated.at<cv::Vec3b>(x, y);
-            if (e.error_type == Evaluator::PredictionLabel::FP) {
-              color[0] = 255;
-              color[1] = 0;
-              color[2] = 0;
-            } else {
-              color[2] = 255;
-              color[1] = 0;
-              color[0] = 0;
-            }
-          }
+        cv::Scalar green = cv::Scalar(0, 255 , 0);
+        cv::Scalar red = cv::Scalar(0, 0 , 255);
+        cv::Scalar color;
+        if (e.error_type == Evaluator::PredictionLabel::FP) {
+          color = red;
+        } else {
+          color = green;
         }
 
+        cv::circle(left_img_annotated, cv::Point(e.pixel_coord.x(), e.pixel_coord.y()), 2, color, -1, 8, 0);
       }
       #if DEBUG
       cout << "img num: " << i << endl;
