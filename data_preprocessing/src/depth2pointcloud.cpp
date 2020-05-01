@@ -106,9 +106,7 @@ bool Depth2Pointcloud::GeneratePointcloud(
 
 
 bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
-                                            int img_margin,
-                                            float angle_min,
-                                            float angle_max,        
+                                            int img_margin,      
                                             float angle_increment,  
                                             float range_min,        
                                             float range_max,
@@ -119,7 +117,10 @@ bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
     std::cout << "Calibration files are not loaded." << std::endl;
     return false;
   }
- 
+  
+  float angle_max = atan((depth_img.cols - img_margin - px_) / fx_);
+  float angle_min = -angle_max;
+  
   int laserscan_size = floor((angle_max - angle_min) / angle_increment);
   proj_ptcloud->ranges.clear();
   proj_ptcloud->points.clear();

@@ -62,9 +62,7 @@ class Depth2Pointcloud{
                           sensor_msgs::PointCloud2* pointcloud2);
   
   bool GenerateProjectedPtCloud(const cv::Mat &depth_img,
-                                int img_margin,
-                                float angle_min,
-                                float angle_max,        
+                                int img_margin,      
                                 float angle_increment,  
                                 float range_min,        
                                 float range_max,

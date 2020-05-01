@@ -85,19 +85,16 @@ const float kMaxObstacleHeight = 2.0; // meters
 const float kDistanceErrThresh = 1.0; // meters
 const float kRelativeDistanceErrThresh = 0.0; // ratio in [0, 1]
 
+// TODO: Should kMarginWidth be a command line argument?
 // Remove depth predictions in the margins of the depth image
-const int kMarginWidth = 200;
+const int kMarginWidth = 150;
 
+// TODO: Load camera intrinsics from file as well, so that the scaled down 
+// version of depth predictions could be supported
 
-// TODO: Calculate kMinAngleLaser and kMaxAngleLaser given the kMarginWidth
-// and the intrinsics of the camera. The TN statistics will be larger than
-// the true value if the laser angular range is not calculated based on 
-// kMarginWidth 
 
 // Parameters of the virtual 2D laser scan
 const float kMinRange = 0.1; // meters
-const float kMinAngleLaser = -45.0 * M_PI / 180.0;
-const float kMaxAngleLaser =  45.0 * M_PI / 180.0;
 const float kAngleIncrementLaser = 0.5 * M_PI / 180.0;
 
 // The minimum length below which we don't visualize error tracks
@@ -243,8 +240,7 @@ int main(int argc, char **argv) {
                       &filename_prefixes);
   std::sort(filename_prefixes.begin(), filename_prefixes.end());
   
-  
-  // TODO: load the trajectory file
+ 
   // For each point in the trajectory, load the pose and orientation
   // They should be in the order of the filenames
   vector<std::pair<Eigen::Vector3f, Eigen::Quaternion<float>>> trajectory;
@@ -254,8 +250,6 @@ int main(int argc, char **argv) {
   // If this isn't true, we likely aren't using the correct pruned trajectory
   CHECK_EQ(trajectory.size(), filename_prefixes.size());
 
-  std::cout << std::numeric_limits<unsigned long int>::max() << std::endl;
-  std::cout << std::numeric_limits<unsigned long long>::max() << std::endl;
   
   int count = 0;
   for (int idx = 0; idx < filename_prefixes.size(); idx++) {
@@ -335,9 +329,7 @@ int main(int argc, char **argv) {
     ProjectedPtCloud proj_ptcloud_gt;
     
     depth_img_converter.GenerateProjectedPtCloud(depth_img_pred,
-                                            kMarginWidth,
-                                            kMinAngleLaser,
-                                            kMaxAngleLaser,        
+                                            kMarginWidth,     
                                             kAngleIncrementLaser,  
                                             kMinRange,        
                                             FLAGS_max_range,
@@ -347,9 +339,7 @@ int main(int argc, char **argv) {
    
               
     depth_img_converter.GenerateProjectedPtCloud(depth_img_gt,
-                                            kMarginWidth,
-                                            kMinAngleLaser,
-                                            kMaxAngleLaser,        
+                                            kMarginWidth,     
                                             kAngleIncrementLaser,  
                                             kMinRange,        
                                             FLAGS_max_range,
@@ -357,8 +347,7 @@ int main(int argc, char **argv) {
                                             kMaxObstacleHeight,
                                             &proj_ptcloud_gt);
     
-    // TODO: T_base2map (transformation from base_link to map) should be  
-    // set from the loaded car trajectory and set accordingly.
+
     std::pair<Eigen::Vector3f, Eigen::Quaternion<float>> pose = trajectory[idx];
     // std::cout << "POSE: " << pose.first.transpose() << std::endl;
     // std::cout << "ORIENTATION: " << pose.second.transpose() << std::endl;
