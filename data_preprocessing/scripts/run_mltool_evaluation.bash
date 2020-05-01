@@ -14,7 +14,7 @@ SOURCE_DIR=$1
 OUTPUT_DIR=$2
 SESSIONS=$3
 TRAJECTORY_PATH=$4
-MAX_RANGES=( 5 20 )
+MAX_RANGES=( 10 )
 
 for session in $SESSIONS; do
   for range in "${MAX_RANGES[@]}"; do

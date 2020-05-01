@@ -105,6 +105,8 @@ class Evaluator{
 
   ErrorHistogram getAbsoluteDistanceErrorHistogram();
   ErrorHistogram getRelativeDistanceErrorHistogram();
+  ErrorHistogram getErrorTrackSizeHistogram();
+
   static const std::vector<float> PCT_WINDOWS;
   static const int HISTOGRAM_BUCKET_SIZE = 1;
  private:

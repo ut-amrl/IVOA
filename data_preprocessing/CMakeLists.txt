@@ -30,7 +30,8 @@ endif ()
 find_package(OpenCV 3.0 REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Boost REQUIRED)
-find_package (gflags REQUIRED)
+find_package(gflags REQUIRED)
+find_package(PCL REQUIRED)
 
 
 include_directories( 
@@ -38,6 +39,7 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
   ${gflags_INCLUDE_DIR}
   ${PROJ_INC_DIR}
+  ${PCL_INCLUDE_DIRS}
 )
 
 # Make sure that libcnpy.so is on LD_LIBRARY_PATH
@@ -88,7 +90,7 @@ rosbuild_add_executable(mltool_evaluation
                                 "src/depth2pointcloud.cpp"
                                 "src/evaluator.cpp"
                                 "src/io_access.cpp")
-target_link_libraries(mltool_evaluation  glog gflags ${OpenCV_LIBS}
+target_link_libraries(mltool_evaluation  glog gflags ${OpenCV_LIBS} ${PCL_LIBRARIES}
                                 "-lpopt" boost_system -lboost_filesystem
                                 -ljsoncpp yaml-cpp -lcnpy
                                  opencv_imgproc opencv_highgui)          
