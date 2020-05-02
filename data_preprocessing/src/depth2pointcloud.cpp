@@ -132,7 +132,8 @@ bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
   proj_ptcloud->range_max = range_max;
   proj_ptcloud->range_min = range_min;
   for (int i = 0; i < laserscan_size; i++) {
-    proj_ptcloud->ranges[i] = range_max + std::numeric_limits<float>::min() * 2.0f;
+    proj_ptcloud->ranges[i] = range_max + 0.01f;
+    
   }
   
   for (int y = img_margin; y < depth_img.rows - img_margin; y++) {

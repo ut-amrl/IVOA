@@ -103,7 +103,7 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
     
     fp_scan_.time_increment = fn_scan_.time_increment = 0;
     fp_scan_.scan_time = fn_scan_.scan_time = 0;
-    vector<float> init_ranges(gt_scan.ranges.size(), gt_scan.range_max + std::numeric_limits<float>::min() * 2.0f);
+    vector<float> init_ranges(gt_scan.ranges.size(), gt_scan.range_max + 0.01f);
     fp_scan_.ranges = fn_scan_.ranges = init_ranges;
   }
   
