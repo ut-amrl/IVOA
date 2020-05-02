@@ -53,7 +53,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
 
-#define DEBUG 0
+#define DEBUG false
 
 using cv::Mat;
 using namespace std;
@@ -206,6 +206,8 @@ int main(int argc, char **argv) {
   ros::Publisher point_cloud_publisher_pred_filt =
       nh.advertise<sensor_msgs::PointCloud2>(
           "/ivoa/pred_pointcloud_filtered", 1);
+  ros::Publisher point_cloud_publisher_err =
+      nh.advertise<sensor_msgs::PointCloud2>("/ivoa/err_pointcloud", 1);
   ros::Publisher laserscan_publisher_gt =
       nh.advertise<sensor_msgs::LaserScan>("/ivoa/gt_laserscan", 1);
   ros::Publisher laserscan_publisher_pred =
@@ -347,6 +349,8 @@ int main(int argc, char **argv) {
       pcl::fromROSMsg(pt_cloud_gt, *pcl_cloud_gt);
       pcl::transformPointCloud(*pcl_cloud_gt, *pcl_cloud_gt_global, T_base2map);
       pcl::toROSMsg(*pcl_cloud_gt_global, pt_cloud_gt_global);
+      
+      pt_cloud_gt_global.header.frame_id = "map";
       point_cloud_publisher_gt_global.publish(pt_cloud_gt_global);
     }
     
@@ -402,6 +406,7 @@ int main(int argc, char **argv) {
     if (kVisualization) {
       point_cloud_publisher_gt_filt.publish(pt_cloud_gt);
       point_cloud_publisher_pred_filt.publish(pt_cloud_pred);
+      point_cloud_publisher_err.publish(evaluator.GetErrorsPointCloud());
       
       sensor_msgs::LaserScan laserscan_gt = 
             depth_img_converter.ProjectedPtCloud_to_LaserScan(proj_ptcloud_gt);
@@ -485,7 +490,7 @@ int main(int argc, char **argv) {
 
       m.ns = "error_tracks";
       m.id = id++;
-      m.header.frame_id = "base_link";
+      m.header.frame_id = "map";
 
       float alpha = std::min(1.0f, (float)(track.loc_map_history.size() - kErrorTrackMinLength) / (kErrorTrackMaxLength - kErrorTrackMinLength));
       if (track.error_type == Evaluator::PredictionLabel::FP) {
@@ -503,7 +508,7 @@ int main(int argc, char **argv) {
 
     error_track_publisher.publish(ma);
 
-    pa.header.frame_id = "base_link";
+    pa.header.frame_id = "map";
     trajectory_publisher.publish(pa);
     
     Evaluator::ErrorHistogram track_hist = evaluator.getErrorTrackSizeHistogram();
