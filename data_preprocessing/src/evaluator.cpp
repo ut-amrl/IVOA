@@ -264,6 +264,35 @@ sensor_msgs::LaserScan Evaluator::GetFalseNegativesScan() {
   return fn_scan_;
 }
 
+sensor_msgs::PointCloud2 Evaluator::GetErrorsPointCloud() {
+  sensor_msgs::PointCloud2 ptcloud;
+  int ptcloud_size = static_cast<int>(errors_list_.back().size());
+  ptcloud.header.frame_id = "map";
+  ptcloud.width  = ptcloud_size;
+  ptcloud.height = 1;
+  ptcloud.is_bigendian = false;
+  ptcloud.is_dense = false; // there may be invalid points
+    sensor_msgs::PointCloud2Modifier modifier(ptcloud);
+  modifier.setPointCloud2FieldsByString(1, "xyz");
+  modifier.reserve(ptcloud_size);
+  
+  sensor_msgs::PointCloud2Iterator<float> out_x(ptcloud, "x");
+  sensor_msgs::PointCloud2Iterator<float> out_y(ptcloud, "y");
+  sensor_msgs::PointCloud2Iterator<float> out_z(ptcloud, "z");
+
+  for (const Error& err : errors_list_.back()) { 
+    *out_x = err.loc_map.x();
+    *out_y = err.loc_map.y();
+    *out_z = err.loc_map.z();
+    ++out_x;
+    ++out_y;
+    ++out_z;
+  }
+  
+  return ptcloud;
+}
+
+
 void Evaluator::LocateError(const Eigen::Vector3f& pred_loc_in_cam,
                    const Eigen::Vector3f& gt_loc_in_cam,
                    PredictionLabel error_type,

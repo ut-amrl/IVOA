@@ -23,6 +23,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <sensor_msgs/LaserScan.h>
+#include <sensor_msgs/PointCloud2.h>
 
 #include <vector>
 #include <string>
@@ -100,6 +101,7 @@ class Evaluator{
   // TODO: Add helper functions for visualization of the errors 
   sensor_msgs::LaserScan GetFalsePositivesScan();
   sensor_msgs::LaserScan GetFalseNegativesScan();
+  sensor_msgs::PointCloud2 GetErrorsPointCloud();
 
   std::vector<std::vector<Error>> GetErrors();
   std::vector<ErrorTrack> GetErrorTracks();

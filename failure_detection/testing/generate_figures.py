@@ -33,8 +33,9 @@ def main():
   # errors for percpetion with high probability will be highlighted. If set to
   # false the complete predicted failure probability heatmap will be overlaid on
   # the input image
-  THRESHOLD_FAILURE = False
+  THRESHOLD_FAILURE = True
   THRESHOLD_VAL = 0.75
+  ADD_ON_GRAY_IMAGE = False
 
 
   # input_img_path = "/media/ssd2/datasets/AirSim_IVOA/CRA_ML_tool/0002_01_418sec_daytime_leaves100/img_left/0000000325.png"
@@ -53,7 +54,7 @@ def main():
   input_img = io.imread(input_img_path)
   width = input_img.shape[1]
   height = input_img.shape[0]
-  input_img_gray = cv2.cvtColor(input_img, cv2.COLOR_BGR2GRAY)
+  input_img_gray = cv2.cvtColor(input_img, cv2.COLOR_RGB2GRAY)
   # cv2.imwrite("input_img_gray.png", input_img_gray)
 
   fp_img = np.loadtxt(fp_img_path, dtype=float)
@@ -70,7 +71,11 @@ def main():
     failure_img[keep_idx] = 1
 
   # Prepare the error heatmap
-  cmap = 'viridis'
+  if THRESHOLD_FAILURE:
+    cmap = 'bwr'
+  else:
+    cmap = 'viridis'
+
   interp = 'bilinear'
   fig = plt.figure(frameon=False)
   fig.set_size_inches(4 * width/height, 4 * 1.0)
@@ -84,21 +89,25 @@ def main():
 
   loaded_heatmap = io.imread("error_heatmap.png")
 
-  # Remove the color of pixels in the heatmap that are classified as not error
+  # Blend the heatmap with the original image
+  if ADD_ON_GRAY_IMAGE:
+    input_img_3C = cv2.cvtColor(input_img_gray, cv2.COLOR_GRAY2BGRA)
+  else:
+    input_img_3C = cv2.cvtColor(input_img, cv2.COLOR_RGB2BGRA)
+  loaded_heatmap = cv2.cvtColor(loaded_heatmap, cv2.COLOR_RGBA2BGRA)
+  alpha = 0.5
+
+  # Blend only the pixels in the heatmap that are classified as error
   if THRESHOLD_FAILURE:
     for i in range(loaded_heatmap.shape[0]):
       for j in range(loaded_heatmap.shape[1]):
-        if not failure_img[i, j]:
-          loaded_heatmap[i, j, 0:3] = np.array([120, 120, 120])
-
-
-  # Blend the heatmap with the original image
-  input_img_gray3C = cv2.cvtColor(input_img_gray, cv2.COLOR_GRAY2BGRA)
-  loaded_heatmap = cv2.cvtColor(loaded_heatmap, cv2.COLOR_RGBA2BGRA)
-  alpha = 0.6
-  cv2.addWeighted(loaded_heatmap, alpha, input_img_gray3C, 1 - alpha,
-                  0, input_img_gray3C)
-  cv2.imwrite("overlay.png", input_img_gray3C)
+        if failure_img[i, j]:
+          input_img_3C[i, j, 0:3] = (input_img_3C[i, j, 0:3] * alpha
+                                     + (1-alpha) * loaded_heatmap[i, j, 0:3])
+  else:
+    cv2.addWeighted(loaded_heatmap, alpha, input_img_3C, 1 - alpha,
+                    0, input_img_3C)
+  cv2.imwrite("overlay.png", input_img_3C)
 
 
 if __name__=="__main__":
