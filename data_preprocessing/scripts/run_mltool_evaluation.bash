@@ -18,14 +18,14 @@ MAX_RANGES=( 10 )
 
 for session in $SESSIONS; do
   for range in "${MAX_RANGES[@]}"; do
-    printf -v SESSION_NUM_STR '%05d' "$session"
+    printf -v SESSION_NUM_STR '%04d' "$session"
     printf -v RANGE_NUM_STR '%d' "$range"
 
     echo "*********************************"
     echo "Evaluating ML Tool on Session $SESSION_NUM_STR for Max Range $RANGE_NUM_STR"
     echo "*********************************"
 
-    printf -v RANGE_DIR '%s/range_%d' "$OUTPUT_DIR" "$range"
+    printf -v RANGE_DIR '%s/session_%s_range_%d' "$OUTPUT_DIR" "$SESSION_NUM_STR" "$range"
     mkdir -p $RANGE_DIR
 
     ../bin/mltool_evaluation \

@@ -160,7 +160,7 @@ bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
       // TODO: For points with z < -min_height, project them to the ground
       // plane along the line to camera center. (This is to handle hole
       // locations more accurately)
-      if (fabs(pt_base(2)) >= height_min && pt_base(2) <= height_max) {
+      if (pt_base(2) >= height_min && pt_base(2) <= height_max) {
 //       if (pt_base(2) >= height_min && pt_base(2) <= height_max) {
         float angle = atan2(pt_base(1), pt_base(0));
         int index = 0;

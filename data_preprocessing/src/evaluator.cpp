@@ -127,7 +127,7 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
     float rel_dist_err = dist_err / gt_scan.ranges[i];
     float rel_err_thresh = rel_distance_err_thresh_ * gt_scan.ranges[i];
     dist_errors_.push_back(-dist_err); // for visualization we want prediction-actual
-    rel_dist_errors_.push_back(rel_dist_err);
+    rel_dist_errors_.push_back(-rel_dist_err);
 
     if (dist_err > std::max(distance_err_thresh_, rel_err_thresh)) {
       // FP
@@ -264,7 +264,6 @@ sensor_msgs::LaserScan Evaluator::GetFalseNegativesScan() {
   return fn_scan_;
 }
 
-
 void Evaluator::LocateError(const Eigen::Vector3f& pred_loc_in_cam,
                    const Eigen::Vector3f& gt_loc_in_cam,
                    PredictionLabel error_type,
@@ -387,21 +386,21 @@ Evaluator::ContainmentWindow getContainmentWindow(std::vector<float> distances, 
   return window;
 }
 
-Evaluator::ErrorHistogram getDistanceErrorHistogram(std::vector<float> error_distances, bool compute_windows) {
+Evaluator::ErrorHistogram getDistanceErrorHistogram(std::vector<float> error_distances, float bucket_size, bool compute_windows) {
   std::sort(error_distances.begin(), error_distances.end());
   float min = error_distances.front();
   float max = error_distances.back();
 
   Evaluator::ErrorHistogram histogram;
-  int num_buckets = (max - min) / Evaluator::HISTOGRAM_BUCKET_SIZE;
+  int num_buckets = (max - min) / bucket_size;
   std::vector<Evaluator::HistogramBucket> buckets(num_buckets);
 
-  int lower = min;
+  float lower = min;
   for(unsigned int bucket_idx = 0; bucket_idx < num_buckets; bucket_idx++) {
     buckets[bucket_idx].lower = lower;
-    buckets[bucket_idx].upper = lower + Evaluator::HISTOGRAM_BUCKET_SIZE;
+    buckets[bucket_idx].upper = lower + bucket_size;
     buckets[bucket_idx].count = 0;
-    lower += Evaluator::HISTOGRAM_BUCKET_SIZE;
+    lower += bucket_size;
   }
 
   unsigned int bucket_idx = 0;
@@ -426,17 +425,17 @@ Evaluator::ErrorHistogram getDistanceErrorHistogram(std::vector<float> error_dis
 }
 
 Evaluator::ErrorHistogram Evaluator::getAbsoluteDistanceErrorHistogram() {
-  return getDistanceErrorHistogram(dist_errors_, true);
+  return getDistanceErrorHistogram(dist_errors_,  0.5f, true);
 }
 
 Evaluator::ErrorHistogram Evaluator::getRelativeDistanceErrorHistogram() {
-  return getDistanceErrorHistogram(rel_dist_errors_, true);
+  return getDistanceErrorHistogram(rel_dist_errors_, 0.1f, true);
 }
 
 Evaluator::ErrorHistogram Evaluator::getErrorTrackSizeHistogram() {
   std::vector<float> sizes(error_tracks_.size());
   std::generate(sizes.begin(), sizes.end(), [this, n=0] () mutable { return error_tracks_[n++].loc_map_history.size(); });
-  return getDistanceErrorHistogram(sizes, false);
+  return getDistanceErrorHistogram(sizes, 1.0f, false);
 }
 
 } // namespace IVOA

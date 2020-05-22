@@ -109,7 +109,6 @@ class Evaluator{
   ErrorHistogram getErrorTrackSizeHistogram();
 
   static const std::vector<float> PCT_WINDOWS;
-  static const int HISTOGRAM_BUCKET_SIZE = 1;
  private:
   
   // Given the 3D location of a pair of points from the predicted depth and 

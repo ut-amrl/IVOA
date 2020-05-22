@@ -45,8 +45,8 @@ for name, histogram_file, window_file in HISTOGRAMS:
 
   # add the last upper edge as well
   boundaries.append(upper)
-
-  plt.hist(boundaries[:-1], weights=counts, bins=boundaries)
+  plt.figure()
+  plt.hist(boundaries[:-1], weights=counts, bins=boundaries, edgecolor='black')
   plt.xlabel(name)
   plt.ylabel('Count')
 
@@ -56,5 +56,4 @@ for name, histogram_file, window_file in HISTOGRAMS:
       plt.axvline(window[2], color=window[1], linestyle='dashed', linewidth=1, label=window[0])
       plt.axvline(window[3], color=window[1], linestyle='dashed', linewidth=1)
 
-  plt.legend()
-  plt.show()
+  plt.savefig(os.path.join(args.dir, histogram_file[:-4] + '.png'))

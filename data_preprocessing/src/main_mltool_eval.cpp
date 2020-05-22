@@ -93,7 +93,7 @@ const float kRelativeDistanceErrThresh = 0.0; // ratio in [0, 1]
 
 // TODO: Should kMarginWidth be a command line argument?
 // Remove depth predictions in the margins of the depth image
-const int kMarginWidth = 200;
+const int kMarginWidth = 50;
 
 // TODO: Load camera intrinsics from file as well, so that the scaled down 
 // version of depth predictions could be supported
@@ -104,11 +104,11 @@ const float kMinRange = 0.1; // meters
 const float kAngleIncrementLaser = 0.5 * M_PI / 180.0;
 
 // The minimum length below which we don't visualize error tracks
-const int kErrorTrackMinLength = 6;
+const int kErrorTrackMinLength = 1;
 // The lenght to which we normalize track length opacity
 const int kErrorTrackMaxLength = 25;
 
-const int kVisualizationErrorSize = 2;
+const int kVisualizationErrorSize = 4;
 
 const cv::Size kImageSize(960, 600);
 
@@ -461,6 +461,20 @@ int main(int argc, char **argv) {
     count++;
   }
 
+  std::vector<unsigned long int>prediction_label_counts;
+  prediction_label_counts = evaluator.GetStatistics();
+  printf("Writing statistics information to file...\n");
+  ofstream stats_file;
+  stats_file.open(FLAGS_output_dir + "/" + "prediction_label_statistics.txt");
+
+  stats_file << "False Positives: " << prediction_label_counts[Evaluator::PredictionLabel::FP] << std::endl;
+  stats_file << "False Negatives: " << prediction_label_counts[Evaluator::PredictionLabel::FN] << std::endl;
+  stats_file << "True Positives: " << prediction_label_counts[Evaluator::PredictionLabel::TP] << std::endl;
+  stats_file << "True Negatives: " << prediction_label_counts[Evaluator::PredictionLabel::TN] << std::endl;
+
+  stats_file << "Total Examples: " << std::accumulate(prediction_label_counts.begin(), prediction_label_counts.end(), 0) << std::endl;
+  stats_file.close();
+
   if (kVisualization) {
     printf("Publishing error track markers...\n");
     visualization_msgs::MarkerArray ma;
@@ -487,7 +501,7 @@ int main(int argc, char **argv) {
       m.id = id++;
       m.header.frame_id = "base_link";
 
-      float alpha = std::min(1.0f, (float)(track.loc_map_history.size() - kErrorTrackMinLength) / (kErrorTrackMaxLength - kErrorTrackMinLength));
+      // float alpha = std::min(1.0f, (float)(track.loc_map_history.size() - kErrorTrackMinLength) / (kErrorTrackMaxLength - kErrorTrackMinLength));
       if (track.error_type == Evaluator::PredictionLabel::FP) {
         m.color.r = 1.0f;
         m.color.g = 0.0f;
@@ -497,7 +511,7 @@ int main(int argc, char **argv) {
         m.color.g = 0.0f;
         m.color.b = 1.0f;
       }
-      m.color.a = alpha;
+      m.color.a = 1.0f;
       ma.markers.push_back(m);
     }
 
@@ -505,6 +519,8 @@ int main(int argc, char **argv) {
 
     pa.header.frame_id = "base_link";
     trajectory_publisher.publish(pa);
+
+    printf("Writing histogram information to file...\n");
     
     Evaluator::ErrorHistogram track_hist = evaluator.getErrorTrackSizeHistogram();
     ofstream track_file;
@@ -544,22 +560,6 @@ int main(int argc, char **argv) {
     }
     rel_hist_window_file.close();
   }
-
-  std::vector<unsigned long int>prediction_label_counts;
-  prediction_label_counts = evaluator.GetStatistics();
-
-
-
-  ofstream stats_file;
-  stats_file.open(FLAGS_output_dir + "/" + "prediction_label_statistics.txt");
-
-  stats_file << "False Positives: " << prediction_label_counts[Evaluator::PredictionLabel::FP] << std::endl;
-  stats_file << "False Negatives: " << prediction_label_counts[Evaluator::PredictionLabel::FN] << std::endl;
-  stats_file << "True Positives: " << prediction_label_counts[Evaluator::PredictionLabel::TP] << std::endl;
-  stats_file << "True Negatives: " << prediction_label_counts[Evaluator::PredictionLabel::TN] << std::endl;
-
-  stats_file << "Total Examples: " << std::accumulate(prediction_label_counts.begin(), prediction_label_counts.end(), 0) << std::endl;
-  stats_file.close();
   return 0;
 }
 
