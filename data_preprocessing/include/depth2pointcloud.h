@@ -48,7 +48,7 @@ struct ProjectedPtCloud {
   float range_min;        // minimum range value [m]
   float range_max;        // maximum range value [m]
   std::vector<float> ranges;
-  std::vector<Eigen::Vector3f> points;
+  std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> points;
 };
   
   

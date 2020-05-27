@@ -241,11 +241,11 @@ std::vector<unsigned long int> Evaluator::GetStatistics() {
   return prediction_label_counts_;
 }
 
-std::vector<std::vector<Evaluator::Error>> Evaluator::GetErrors() {
+std::vector<std::vector<Evaluator::Error>>& Evaluator::GetErrors() {
   return errors_list_;
 }
 
-std::vector<Evaluator:: ErrorTrack> Evaluator::GetErrorTracks() {
+std::vector<Evaluator:: ErrorTrack>& Evaluator::GetErrorTracks() {
   return error_tracks_;
 }
 

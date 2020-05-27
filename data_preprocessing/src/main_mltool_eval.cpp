@@ -53,8 +53,6 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
 
-#define DEBUG false
-
 using cv::Mat;
 using namespace std;
 using namespace IVOA;
@@ -71,30 +69,28 @@ DEFINE_string(cam_extrinsics_path, "", "Path to the file containing the "
                                        "left camera calibration file.");
 DEFINE_string(trajectory_path, "", "Path to the trajectory file to use.");
 DEFINE_string(output_dir, "", "Path to save the generated results. ");
-DEFINE_double(max_range, 40.0, "Max range to consider for depth prediction evaluation");
-DEFINE_double(margin_width, 50.0, "Margin around the edge of the images to throw out during evaluation");
+DEFINE_int32(margin_width, 50, "Margin around the edge of the images to throw out during evaluation");
+DEFINE_bool(visualization, false, "Whether or not to publish visualization information while executing.");
+DEFINE_bool(debug, false, "Whether or not run with debugging visualizations and print statements.");
 DECLARE_bool(help);
 DECLARE_bool(helpshort);
 
-
-// Parameters
-const bool kVisualization = true;
-
 // Objects that are further than max_range_ away from the agent will not be
 // considered for obstacle avoidance
-const float kMinObstacleHeight = 0.3; // meters
-const float kMaxObstacleHeight = 2.0; // meters
+DEFINE_double(max_range, 40.0, "Max range to consider for depth prediction evaluation");
 
 // If the predicted distance to obstacle is off from the ground truth by
 // more than max(kDistanceErrThresh, kRelativeErrThresh * TrueDistance), it 
 // will be labeled as either FP (if pred_dist < gt_dist) or FN (if pred_dist > 
 // gt_dist)
-const float kDistanceErrThresh = 1.0; // meters
-const float kRelativeDistanceErrThresh = 0.0; // ratio in [0, 1]
+DEFINE_double(distance_err_thresh, 1.0, "Error distance past which we classify predictions as FP or FN.");
+DEFINE_double(relative_distance_err_thresh, 0.0, "RElativerror distance past which we classify predictions as FP or FN.");
+
+const float kMinObstacleHeight = 0.3; // meters
+const float kMaxObstacleHeight = 2.0; // meters
 
 // TODO: Load camera intrinsics from file as well, so that the scaled down 
 // version of depth predictions could be supported
-
 
 // Parameters of the virtual 2D laser scan
 const float kMinRange = 0.1; // meters
@@ -102,10 +98,9 @@ const float kAngleIncrementLaser = 0.5 * M_PI / 180.0;
 
 // The minimum length below which we don't visualize error tracks
 const int kErrorTrackMinLength = 1;
-// The lenght to which we normalize track length opacity
+// The length to which we normalize track length opacity
 const int kErrorTrackMaxLength = 25;
-
-const int kVisualizationErrorSize = 4;
+const int kVisualizationErrorSize = 2;
 
 const cv::Size kImageSize(960, 600);
 
@@ -231,9 +226,9 @@ int main(int argc, char **argv) {
   Depth2Pointcloud depth_img_converter;
   depth_img_converter.LoadCameraCalibration(FLAGS_cam_extrinsics_path);
   
-  Evaluator evaluator(kDistanceErrThresh,
-                      kRelativeDistanceErrThresh,
-                      kVisualization);
+  Evaluator evaluator(FLAGS_distance_err_thresh,
+                      FLAGS_relative_distance_err_thresh,
+                      FLAGS_visualization);
   evaluator.LoadCameraCalibration(FLAGS_cam_extrinsics_path);
  
 
@@ -319,7 +314,7 @@ int main(int argc, char **argv) {
     }
     
     // Publish the original point clouds
-    if (kVisualization) {
+    if (FLAGS_visualization) {
       point_cloud_publisher_gt.publish(pt_cloud_gt);
       point_cloud_publisher_pred.publish(pt_cloud_pred);
     }
@@ -339,7 +334,7 @@ int main(int argc, char **argv) {
     T_base2map.setIdentity();
     T_base2map = T_NED2ROS * T_baseNED2mapNED * T_ROS2NED; 
 
-    if (kVisualization) {
+    if (FLAGS_visualization) {
       sensor_msgs::PointCloud2 pt_cloud_gt_global;
       pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud_gt(new pcl::PointCloud<pcl::PointXYZ>);
       pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud_gt_global(new pcl::PointCloud<pcl::PointXYZ>);
@@ -395,12 +390,9 @@ int main(int argc, char **argv) {
                                   T_base2map,
                                   static_cast<long unsigned int>(i),
                                   depth_img_gt);  
-    
-    std::vector<Evaluator::Error> errors = evaluator.GetErrors()[errors_idx];
-    // std::cout << "Example error location: " << errors[0].loc_map.transpose() << std::endl;
 
     // Publish the filtered point clouds
-    if (kVisualization) {
+    if (FLAGS_visualization) {
       point_cloud_publisher_gt_filt.publish(pt_cloud_gt);
       point_cloud_publisher_pred_filt.publish(pt_cloud_pred);
       point_cloud_publisher_err.publish(evaluator.GetErrorsPointCloud());
@@ -437,10 +429,11 @@ int main(int argc, char **argv) {
       pose_publisher.publish(pose_msg);
     }
 
-    if (kVisualization) {
+    if (FLAGS_debug) {
       // Read the left cam image
       Mat left_img_annotated = cv::imread(left_img_path,CV_LOAD_IMAGE_UNCHANGED);
-      
+      std::vector<Evaluator::Error> errors = evaluator.GetErrors()[errors_idx];
+
       for(Evaluator::Error e : errors) {
         cv::Scalar green = cv::Scalar(0, 255 , 0);
         cv::Scalar red = cv::Scalar(0, 0 , 255);
@@ -451,15 +444,13 @@ int main(int argc, char **argv) {
           color = green;
         }
 
-        cv::circle(left_img_annotated, cv::Point(e.pixel_coord.x(), e.pixel_coord.y()), 2, color, -1, 8, 0);
+        cv::circle(left_img_annotated, cv::Point(e.pixel_coord.x(), e.pixel_coord.y()), kVisualizationErrorSize, color, -1, 8, 0);
       }
-      #if DEBUG
       cout << "img num: " << i << endl;
       cv::imshow("window", left_img_annotated);
       cv::waitKey(0);
-      #endif
     }
-
+  
     count++;
   }
 
@@ -477,7 +468,7 @@ int main(int argc, char **argv) {
   stats_file << "Total Examples: " << std::accumulate(prediction_label_counts.begin(), prediction_label_counts.end(), 0) << std::endl;
   stats_file.close();
 
-  if (kVisualization) {
+  if (FLAGS_visualization) {
     printf("Publishing error track markers...\n");
     visualization_msgs::MarkerArray ma;
     int id = 0;
@@ -521,47 +512,47 @@ int main(int argc, char **argv) {
 
     pa.header.frame_id = "map";
     trajectory_publisher.publish(pa);
-
-    printf("Writing histogram information to file...\n");
-    
-    Evaluator::ErrorHistogram track_hist = evaluator.getErrorTrackSizeHistogram();
-    ofstream track_file;
-    track_file.open(FLAGS_output_dir + "/" + "error_track_size_histogram.csv");
-    for(auto bucket : track_hist.buckets) {
-      track_file << bucket.lower << ", " << bucket.upper << ", " << bucket.count << std::endl;
-    }
-    track_file.close();
-    
-    Evaluator::ErrorHistogram histogram = evaluator.getAbsoluteDistanceErrorHistogram();
-    ofstream hist_file;
-    hist_file.open(FLAGS_output_dir + "/" + "dist_error_histogram.csv");
-    for(auto bucket : histogram.buckets) {
-      hist_file << bucket.lower << ", " << bucket.upper << ", " << bucket.count << std::endl;
-    }
-    hist_file.close();
-
-    ofstream hist_window_file;
-    hist_window_file.open(FLAGS_output_dir + "/" + "dist_error_histogram_windows.csv");
-    for(auto window : histogram.windows) {
-      hist_window_file << window.pct << ", " << window.pos_bound << ", " << window.neg_bound << std::endl;
-    }
-    hist_window_file.close();
-
-    Evaluator::ErrorHistogram rel_histogram = evaluator.getRelativeDistanceErrorHistogram();
-    ofstream rel_hist_file;
-    rel_hist_file.open(FLAGS_output_dir + "/" + "rel_dist_error_histogram.csv");
-    for(auto bucket : rel_histogram.buckets) {
-      rel_hist_file << bucket.lower << ", " << bucket.upper << ", " << bucket.count << std::endl;
-    }
-    rel_hist_file.close();
-
-    ofstream rel_hist_window_file;
-    rel_hist_window_file.open(FLAGS_output_dir + "/" + "rel_dist_error_histogram_windows.csv");
-    for(auto window : rel_histogram.windows) {
-      rel_hist_window_file << window.pct << ", " << window.pos_bound << ", " << window.neg_bound << std::endl;
-    }
-    rel_hist_window_file.close();
   }
+
+  printf("Writing histogram information to file...\n");
+  
+  Evaluator::ErrorHistogram track_hist = evaluator.getErrorTrackSizeHistogram();
+  ofstream track_file;
+  track_file.open(FLAGS_output_dir + "/" + "error_track_size_histogram.csv");
+  for(auto bucket : track_hist.buckets) {
+    track_file << bucket.lower << ", " << bucket.upper << ", " << bucket.count << std::endl;
+  }
+  track_file.close();
+  
+  Evaluator::ErrorHistogram histogram = evaluator.getAbsoluteDistanceErrorHistogram();
+  ofstream hist_file;
+  hist_file.open(FLAGS_output_dir + "/" + "dist_error_histogram.csv");
+  for(auto bucket : histogram.buckets) {
+    hist_file << bucket.lower << ", " << bucket.upper << ", " << bucket.count << std::endl;
+  }
+  hist_file.close();
+
+  ofstream hist_window_file;
+  hist_window_file.open(FLAGS_output_dir + "/" + "dist_error_histogram_windows.csv");
+  for(auto window : histogram.windows) {
+    hist_window_file << window.pct << ", " << window.pos_bound << ", " << window.neg_bound << std::endl;
+  }
+  hist_window_file.close();
+
+  Evaluator::ErrorHistogram rel_histogram = evaluator.getRelativeDistanceErrorHistogram();
+  ofstream rel_hist_file;
+  rel_hist_file.open(FLAGS_output_dir + "/" + "rel_dist_error_histogram.csv");
+  for(auto bucket : rel_histogram.buckets) {
+    rel_hist_file << bucket.lower << ", " << bucket.upper << ", " << bucket.count << std::endl;
+  }
+  rel_hist_file.close();
+
+  ofstream rel_hist_window_file;
+  rel_hist_window_file.open(FLAGS_output_dir + "/" + "rel_dist_error_histogram_windows.csv");
+  for(auto window : rel_histogram.windows) {
+    rel_hist_window_file << window.pct << ", " << window.pos_bound << ", " << window.neg_bound << std::endl;
+  }
+  rel_hist_window_file.close();
   return 0;
 }
 

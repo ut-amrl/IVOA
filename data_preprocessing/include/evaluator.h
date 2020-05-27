@@ -103,8 +103,8 @@ class Evaluator{
   sensor_msgs::LaserScan GetFalseNegativesScan();
   sensor_msgs::PointCloud2 GetErrorsPointCloud();
 
-  std::vector<std::vector<Error>> GetErrors();
-  std::vector<ErrorTrack> GetErrorTracks();
+  std::vector<std::vector<Error>>& GetErrors();
+  std::vector<ErrorTrack>& GetErrorTracks();
 
   ErrorHistogram getAbsoluteDistanceErrorHistogram();
   ErrorHistogram getRelativeDistanceErrorHistogram();
