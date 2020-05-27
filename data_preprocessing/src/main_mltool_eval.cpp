@@ -72,6 +72,7 @@ DEFINE_string(cam_extrinsics_path, "", "Path to the file containing the "
 DEFINE_string(trajectory_path, "", "Path to the trajectory file to use.");
 DEFINE_string(output_dir, "", "Path to save the generated results. ");
 DEFINE_double(max_range, 40.0, "Max range to consider for depth prediction evaluation");
+DEFINE_double(margin_width, 50.0, "Margin around the edge of the images to throw out during evaluation");
 DECLARE_bool(help);
 DECLARE_bool(helpshort);
 
@@ -90,10 +91,6 @@ const float kMaxObstacleHeight = 2.0; // meters
 // gt_dist)
 const float kDistanceErrThresh = 1.0; // meters
 const float kRelativeDistanceErrThresh = 0.0; // ratio in [0, 1]
-
-// TODO: Should kMarginWidth be a command line argument?
-// Remove depth predictions in the margins of the depth image
-const int kMarginWidth = 50;
 
 // TODO: Load camera intrinsics from file as well, so that the scaled down 
 // version of depth predictions could be supported
@@ -312,10 +309,10 @@ int main(int argc, char **argv) {
     sensor_msgs::PointCloud2 pt_cloud_gt;
     sensor_msgs::PointCloud2 pt_cloud_pred;
     if (!depth_img_converter.GeneratePointcloud(depth_img_gt, 
-                                                kMarginWidth,
+                                                FLAGS_margin_width,
                                                 &pt_cloud_gt) ||
       !depth_img_converter.GeneratePointcloud(depth_img_pred,
-                                              kMarginWidth, 
+                                              FLAGS_margin_width, 
                                               &pt_cloud_pred)){
       LOG(FATAL) << "Point cloud generation failed. "
                  << "No camera calibration was available.";
@@ -373,7 +370,7 @@ int main(int argc, char **argv) {
     ProjectedPtCloud proj_ptcloud_gt;
     
     depth_img_converter.GenerateProjectedPtCloud(depth_img_pred,
-                                            kMarginWidth,     
+                                            FLAGS_margin_width,     
                                             kAngleIncrementLaser,  
                                             kMinRange,        
                                             FLAGS_max_range,
@@ -383,7 +380,7 @@ int main(int argc, char **argv) {
    
               
     depth_img_converter.GenerateProjectedPtCloud(depth_img_gt,
-                                            kMarginWidth,     
+                                            FLAGS_margin_width,     
                                             kAngleIncrementLaser,  
                                             kMinRange,        
                                             FLAGS_max_range,

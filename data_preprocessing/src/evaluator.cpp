@@ -56,7 +56,6 @@ int Evaluator::LoadCameraCalibration(
   const std::string extrinsics_file) {
   // Load the calibration yaml files
   YAML::Node cam_ext = YAML::LoadFile(extrinsics_file);
-  
 
   std::vector<float> T_cam2base_vec;
   if (cam_ext["T_cam2base"]["data"]) {
