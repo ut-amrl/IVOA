@@ -37,13 +37,13 @@ Depth2Pointcloud::Depth2Pointcloud() {
 
 bool Depth2Pointcloud::GeneratePointcloud(
     const cv::Mat &depth_img,
-    int img_margin,
+    float img_margin_perc,
     sensor_msgs::PointCloud2* pointcloud2) {
   if (!calibration_is_loaded_) {
     std::cout << "Calibration files are not loaded." << std::endl;
     return false;
   }
-
+  
   // Pointcloud2
   int max_point_num = depth_img.rows * depth_img.cols;
   pointcloud2->header.frame_id = "base_link";
@@ -62,6 +62,7 @@ bool Depth2Pointcloud::GeneratePointcloud(
   sensor_msgs::PointCloud2Iterator<float> out_z(*pointcloud2, "z");
 
   int valid_points_count = 0;
+  float img_margin = img_margin_perc * depth_img.cols / 100.0f;
   for (int y = img_margin; y < depth_img.rows - img_margin; y++) {
     for (int x = img_margin; x < depth_img.cols - img_margin; x++) {      
       float depth = depth_img.at<float>(y, x);
@@ -106,7 +107,7 @@ bool Depth2Pointcloud::GeneratePointcloud(
 
 
 bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
-                                            int img_margin,      
+                                            float img_margin_perc,      
                                             float angle_increment,  
                                             float range_min,        
                                             float range_max,
@@ -117,11 +118,13 @@ bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
     std::cout << "Calibration files are not loaded." << std::endl;
     return false;
   }
-  
-  float angle_max = atan((depth_img.cols - img_margin - px_) / fx_);
+  float img_margin = img_margin_perc * depth_img.cols / 100.0f;
+  float angle_max = atan((depth_img.cols - img_margin - cam_mat_(0,2)) / 
+                                                        cam_mat_(0,0));
   float angle_min = -angle_max;
   
   int laserscan_size = floor((angle_max - angle_min) / angle_increment);
+ 
   proj_ptcloud->ranges.clear();
   proj_ptcloud->points.clear();
   proj_ptcloud->ranges.resize(laserscan_size);
@@ -334,29 +337,37 @@ cv::Mat Depth2Pointcloud::GenerateObstacleImage(const cv::Mat &depth_img,
 }
 
 int Depth2Pointcloud::LoadCameraCalibration(
-  const std::string extrinsics_file) {
+  const std::string calibration_file) {
   // Load the calibration yaml files
-  YAML::Node cam_ext = YAML::LoadFile(extrinsics_file);
+  YAML::Node cam_cal = YAML::LoadFile(calibration_file);
 
 
   std::vector<float> T_cam2base_vec;
-  if (cam_ext["T_cam2base"]["data"]) {
-    T_cam2base_vec = cam_ext["T_cam2base"]["data"].as<std::vector<float>>();
+  if (cam_cal["T_cam2base"]["data"]) {
+    T_cam2base_vec = cam_cal["T_cam2base"]["data"].as<std::vector<float>>();
   } else {
-    std::cout << "Cannot read " << extrinsics_file << std::endl;
+    std::cout << "Cannot read " << calibration_file << std::endl;
     return -1;
   }
-
-
   CHECK_EQ(T_cam2base_vec.size(), 12) << "Corrupted calibration file.";
-
-
   // Convert the loaded data to eigen matrices
   Map<Matrix<float, 3, 4, Eigen::RowMajor>> T_cam2base(T_cam2base_vec.data());
- 
+
   T_cam2base_.topLeftCorner(3, 4) = T_cam2base;
  
-
+  std::vector<float> cam_mat;
+  if (cam_cal["DEPTH.K"]["data"]) {
+    cam_mat = cam_cal["DEPTH.K"]["data"].as<std::vector<float>>();
+  } else {
+    std::cout << "Cannot read " << calibration_file << std::endl;
+    return -1;
+  }
+  
+  CHECK_EQ(cam_mat.size(), 9) << "Corrupted calibration file.";
+  Map<Matrix<float, 3, 3, Eigen::RowMajor>> cam_mat_eig(cam_mat.data());
+  cam_mat_ = cam_mat_eig;
+ 
+  
   calibration_is_loaded_ = true;
   return 0;
 }
@@ -374,8 +385,8 @@ geometry_msgs::Point32 Depth2Pointcloud::Calculate3DCoord(
   // Calculate the 3D coordinates of the point in the optical reference frame
   // of the camera (x points to the right of the image, y to the bottom and z
   // points into the image plane)
-  point.x = (u - px_) * depth / fx_;
-  point.y = (v - py_) * depth / fy_;
+  point.x = (u - cam_mat_(0,2)) * depth / cam_mat_(0,0);
+  point.y = (v - cam_mat_(1,2)) * depth / cam_mat_(1,1);
   point.z = depth;
 
   return point;

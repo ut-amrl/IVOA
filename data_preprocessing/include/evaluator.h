@@ -88,7 +88,7 @@ class Evaluator{
     std::vector<ContainmentWindow> windows;
   };
 
-  int LoadCameraCalibration(const std::string extrinsics_file);
+  int LoadCameraCalibration(const std::string calibration_file);
   // Returns the index in the errors_list_ of this evaluation
   unsigned int EvaluatePredictions(const ProjectedPtCloud& pred_scan,
                            const ProjectedPtCloud& gt_scan,
@@ -150,13 +150,9 @@ class Evaluator{
   float distance_err_thresh_;
   float rel_distance_err_thresh_;
   
-  // TODO: Load camera intrinsics from file
-  // Camera intrinsics 
-  float fx_ = 480.0;
-  float fy_ = 480.0;
-  float px_ = 480.0;
-  float py_ = 300.0;
-  
+  // NOTE: Currently, the evaluator assumes that the RGB image 
+  // and the ground truth depth camera are aligned and have the same intrinsics
+   
   bool debug_mode_;
   
   // Camera matrix 

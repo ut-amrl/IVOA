@@ -1,0 +1,24 @@
+%YAML:1.0
+T_cam2base: !!opencv-matrix
+   rows: 3
+   cols: 4
+   dt: d
+   data: [0, -0.173648,  0.984808,       1.2,
+         -1,         0,         0,      0.06,
+          0, -0.984808, -0.173648,       1.7] 
+         
+
+DEPTH.height: 600
+DEPTH.width: 960
+DEPTH.D: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [0, 0, 0, 0, 0]
+DEPTH.K: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [480.0, 0.000000, 480.0, 
+          0.000000, 480.0, 300.0, 
+          0.000000, 0.000000, 1.000000]

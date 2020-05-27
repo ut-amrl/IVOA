@@ -58,11 +58,11 @@ class Depth2Pointcloud{
   ~Depth2Pointcloud() = default;
 
   bool GeneratePointcloud(const cv::Mat &depth_img,
-                          int img_margin,
+                          float img_margin_perc,
                           sensor_msgs::PointCloud2* pointcloud2);
   
   bool GenerateProjectedPtCloud(const cv::Mat &depth_img,
-                                int img_margin,      
+                                float img_margin_perc,      
                                 float angle_increment,  
                                 float range_min,        
                                 float range_max,
@@ -99,7 +99,7 @@ class Depth2Pointcloud{
                                 const float &negative_height_thresh,
                                 cv::Mat *obstacle_distance);
 
-  int LoadCameraCalibration(const std::string extrinsics_file);
+  int LoadCameraCalibration(const std::string calibration_file);
 
 
  private:
@@ -113,21 +113,17 @@ class Depth2Pointcloud{
                            float angle_increment,
                            int *index);
 
-  // Camera intrinsics 
-  float fx_ = 480.0;
-  float fy_ = 480.0;
-  float px_ = 480.0;
-  float py_ = 300.0;
-
   float min_range_ = 0.0; // m
   float max_range_ = 1e10; // m
 
 
   // Transformation from camera frame to robot's base frame
   Eigen::Matrix4f T_cam2base_;
+  
+  // Camera matrix
+  Eigen::Matrix3f cam_mat_;
+ 
   bool calibration_is_loaded_ = false;
-
-
 };
 } // namespace IVOA
 

@@ -8,7 +8,9 @@ then
   echo "USAGE: $0 SOURCE_DIR OUT_DIR SESSION TRAJECTORY_PATH"
 fi
 
-CAM_EXTRINSICS_PATH="../util/Camera_Extrinsics.yaml"
+GT_CAM_CALIBRATION="../util/gt_depth_calibration.yaml"
+ML_CAM_CALIBRATION="../util/ml_tool_depth_calibration_ds.yaml"
+# ML_CAM_CALIBRATION="../util/ml_tool_depth_calibration.yaml"
 
 SOURCE_DIR=$1
 OUTPUT_DIR=$2
@@ -30,7 +32,8 @@ for range in "${MAX_RANGES[@]}"; do
   ../bin/mltool_evaluation \
   --session_num=$SESSION \
   --source_dir=$SOURCE_DIR \
-  --cam_extrinsics_path=$CAM_EXTRINSICS_PATH \
+  --gt_cam_cal_path=$GT_CAM_CALIBRATION \
+  --ml_cam_cal_path=$ML_CAM_CALIBRATION \
   --output_dir=$RANGE_DIR \
   --trajectory_path=$TRAJECTORY_PATH \
   --max_range=$range

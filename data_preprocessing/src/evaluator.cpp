@@ -41,10 +41,6 @@ Evaluator::Evaluator(float distance_err_thresh,
         distance_err_thresh_ (distance_err_thresh),
         rel_distance_err_thresh_(rel_distance_err_thresh),
         debug_mode_(debug_mode){
-          
-  cam_mat_ << fx_,  0.0,  px_,
-              0.0,  fy_,  py_,
-              0.0,  0.0,  1.0;
   
   prediction_label_counts_.resize(4);
   for (int i = 0; i < 4; i++) {
@@ -53,27 +49,35 @@ Evaluator::Evaluator(float distance_err_thresh,
 }
 
 int Evaluator::LoadCameraCalibration(
-  const std::string extrinsics_file) {
+  const std::string calibration_file) {
   // Load the calibration yaml files
-  YAML::Node cam_ext = YAML::LoadFile(extrinsics_file);
+  YAML::Node cam_cal = YAML::LoadFile(calibration_file);
 
   std::vector<float> T_cam2base_vec;
-  if (cam_ext["T_cam2base"]["data"]) {
-    T_cam2base_vec = cam_ext["T_cam2base"]["data"].as<std::vector<float>>();
+  if (cam_cal["T_cam2base"]["data"]) {
+    T_cam2base_vec = cam_cal["T_cam2base"]["data"].as<std::vector<float>>();
   } else {
-    std::cout << "Cannot read " << extrinsics_file << std::endl;
+    std::cout << "Cannot read " << calibration_file << std::endl;
     return -1;
   }
 
-
   CHECK_EQ(T_cam2base_vec.size(), 12) << "Corrupted calibration file.";
-
   T_cam2base_ = Matrix4f::Identity();
-
   // Convert the loaded data to eigen matrices
   Map<Matrix<float, 3, 4, Eigen::RowMajor>> T_cam2base(T_cam2base_vec.data());
- 
   T_cam2base_.topLeftCorner(3, 4) = T_cam2base;
+  
+  std::vector<float> cam_mat;
+  if (cam_cal["DEPTH.K"]["data"]) {
+    cam_mat = cam_cal["DEPTH.K"]["data"].as<std::vector<float>>();
+  } else {
+    std::cout << "Cannot read " << calibration_file << std::endl;
+    return -1;
+  }
+  
+  CHECK_EQ(cam_mat.size(), 9) << "Corrupted calibration file.";
+  Map<Matrix<float, 3, 3, Eigen::RowMajor>> cam_mat_eig(cam_mat.data());
+  cam_mat_ = cam_mat_eig;
  
 
   calibration_is_loaded_ = true;
@@ -299,6 +303,10 @@ void Evaluator::LocateError(const Eigen::Vector3f& pred_loc_in_cam,
                    const cv::Mat &depth_img_gt,
                    Eigen::Vector3f* err_loc_map,
                    Eigen::Vector2f* err_pixel_coord) {
+  if (!calibration_is_loaded_) {
+    LOG(FATAL) << "Camera calibration was not provided!";
+  }
+  
   Vector3f pt_of_interest;
   if (error_type == FP) {
     *err_pixel_coord = ProjectToCam(pred_loc_in_cam); 
@@ -311,12 +319,7 @@ void Evaluator::LocateError(const Eigen::Vector3f& pred_loc_in_cam,
   } else {
     LOG(FATAL) << "Unknown error type!";
   }
-  
-  
-  
-  if (!calibration_is_loaded_) {
-    LOG(FATAL) << "Camera calibration was not provided!";
-  }
+ 
   
   Eigen::Vector4f pt_of_interest_h(1.0, 1.0, 1.0, 1.0);
   pt_of_interest_h.head(3) = pt_of_interest;
@@ -350,8 +353,8 @@ Eigen::Vector3f Evaluator::Calculate3DCoord(int u,
   // Calculate the 3D coordinates of the point in the optical reference frame
   // of the camera (x points to the right of the image, y to the bottom and z
   // points into the image plane)
-  point.x() = (u - px_) * depth / fx_;
-  point.y() = (v - py_) * depth / fy_;
+  point.x() = (u - cam_mat_(0,2)) * depth / cam_mat_(0,0);
+  point.y() = (v - cam_mat_(1,2)) * depth / cam_mat_(1,1);
   point.z() = depth;
 
   return point;

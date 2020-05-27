@@ -65,11 +65,15 @@ DEFINE_int32(session_num, 0, "Session number to identify the generated "
                              "portion of the dataset.");
 DEFINE_string(source_dir, "", "Path to the base directory of the source " 
                               "dataset.");
-DEFINE_string(cam_extrinsics_path, "", "Path to the file containing the "
-                                       "left camera calibration file.");
+DEFINE_string(ml_cam_cal_path, "", "Path to the file containing the "
+                      "ml tool depth camera calibration.");
+DEFINE_string(gt_cam_cal_path, "", "Path to the file containing the "
+                      "ground truth depth calibration.");
 DEFINE_string(trajectory_path, "", "Path to the trajectory file to use.");
 DEFINE_string(output_dir, "", "Path to save the generated results. ");
-DEFINE_int32(margin_width, 50, "Margin around the edge of the images to throw out during evaluation");
+DEFINE_double(margin_width, 5, "Margin around the edge of the images to throw "
+" out during evaluation. Value is interpreted as the percentage of the image"
+" width");
 DEFINE_bool(visualization, false, "Whether or not to publish visualization information while executing.");
 DEFINE_bool(debug, false, "Whether or not run with debugging visualizations and print statements.");
 DECLARE_bool(help);
@@ -94,7 +98,9 @@ const float kMaxObstacleHeight = 2.0; // meters
 
 // Parameters of the virtual 2D laser scan
 const float kMinRange = 0.1; // meters
-const float kAngleIncrementLaser = 0.5 * M_PI / 180.0;
+const float kAngleIncrementLaser = 0.5 * M_PI / 180.0; // down to 0.2 degrees
+                                           // should be fine for image width 
+                                           // of 480
 
 // The minimum length below which we don't visualize error tracks
 const int kErrorTrackMinLength = 1;
@@ -108,7 +114,8 @@ const cv::Size kImageSize(960, 600);
 void CheckCommandLineArgs(char** argv) {
   vector<string> required_args = {"session_num",
                                   "source_dir",
-                                  "cam_extrinsics_path",
+                                  "ml_cam_cal_path",
+                                  "gt_cam_cal_path",
                                   "output_dir",
                                   "trajectory_path"};
   
@@ -221,15 +228,18 @@ int main(int argc, char **argv) {
       nh.advertise<geometry_msgs::PoseArray>("/ivoa/trajectory", 1);
   geometry_msgs::PoseArray pa;
 
-  // Using only one instance of Depth2Pointcloud since the depth and left RGB
-  // camera share the same extrinsics and intrinsics in our AirSim setup 
+  // Depth2PointCloud for the ground truth depth camera
   Depth2Pointcloud depth_img_converter;
-  depth_img_converter.LoadCameraCalibration(FLAGS_cam_extrinsics_path);
+  depth_img_converter.LoadCameraCalibration(FLAGS_gt_cam_cal_path);
+  
+  // Depth2PointCloud for the mltool depth camera
+  Depth2Pointcloud depth_img_converter_ml;
+  depth_img_converter_ml.LoadCameraCalibration(FLAGS_ml_cam_cal_path);
   
   Evaluator evaluator(FLAGS_distance_err_thresh,
                       FLAGS_relative_distance_err_thresh,
                       FLAGS_visualization);
-  evaluator.LoadCameraCalibration(FLAGS_cam_extrinsics_path);
+  evaluator.LoadCameraCalibration(FLAGS_gt_cam_cal_path);
  
 
   string gt_depth_dir = FLAGS_source_dir + "/img_depth/";
@@ -298,7 +308,7 @@ int main(int argc, char **argv) {
     
     // Resize and linearly interpolate the predicted depth image so that it 
     // is the same size as the ground truth depth image
-    cv::resize(depth_img_pred,depth_img_pred,depth_img_gt.size());
+//     cv::resize(depth_img_pred,depth_img_pred,depth_img_gt.size());
     
     // Ground truth and predicted point clouds
     sensor_msgs::PointCloud2 pt_cloud_gt;
@@ -306,7 +316,7 @@ int main(int argc, char **argv) {
     if (!depth_img_converter.GeneratePointcloud(depth_img_gt, 
                                                 FLAGS_margin_width,
                                                 &pt_cloud_gt) ||
-      !depth_img_converter.GeneratePointcloud(depth_img_pred,
+      !depth_img_converter_ml.GeneratePointcloud(depth_img_pred,
                                               FLAGS_margin_width, 
                                               &pt_cloud_pred)){
       LOG(FATAL) << "Point cloud generation failed. "
@@ -354,7 +364,7 @@ int main(int argc, char **argv) {
                                                             0,
                                                             FLAGS_max_range);
     
-    pt_cloud_pred = depth_img_converter.FilterPointCloudByHeightAndDistance(
+    pt_cloud_pred = depth_img_converter_ml.FilterPointCloudByHeightAndDistance(
                                                             pt_cloud_pred,
                                                             kMinObstacleHeight,
                                                             kMaxObstacleHeight,
@@ -364,7 +374,7 @@ int main(int argc, char **argv) {
     ProjectedPtCloud proj_ptcloud_pred;
     ProjectedPtCloud proj_ptcloud_gt;
     
-    depth_img_converter.GenerateProjectedPtCloud(depth_img_pred,
+    depth_img_converter_ml.GenerateProjectedPtCloud(depth_img_pred,
                                             FLAGS_margin_width,     
                                             kAngleIncrementLaser,  
                                             kMinRange,        
