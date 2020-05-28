@@ -424,28 +424,26 @@ Evaluator::ErrorHistogram getDistanceErrorHistogram(std::vector<float> error_dis
   float max = error_distances.back();
 
   Evaluator::ErrorHistogram histogram;
-  unsigned int num_buckets = (max - min) / bucket_size;
-  std::vector<Evaluator::HistogramBucket> buckets(num_buckets);
+  size_t num_buckets = ceil((max - min) / bucket_size);
+  histogram.buckets.resize(num_buckets);
 
   float lower = min;
-  for(unsigned int bucket_idx = 0; bucket_idx < num_buckets; bucket_idx++) {
-    buckets[bucket_idx].lower = lower;
-    buckets[bucket_idx].upper = lower + bucket_size;
-    buckets[bucket_idx].count = 0;
+  for(size_t bucket_idx = 0; bucket_idx < num_buckets; bucket_idx++) {
+    histogram.buckets[bucket_idx].lower = lower;
+    histogram.buckets[bucket_idx].upper = lower + bucket_size;
+    histogram.buckets[bucket_idx].count = 0;
     lower += bucket_size;
   }
 
-  unsigned int bucket_idx = 0;
-  for(unsigned int i = 0; i < error_distances.size(); i++) {
-    while (error_distances[i] >= buckets[bucket_idx].upper) {
+  size_t bucket_idx = 0;
+  for(size_t i = 0; i < error_distances.size(); i++) {
+    while (error_distances[i] >= histogram.buckets[bucket_idx].upper) {
       bucket_idx++;
     }
 
-    buckets[bucket_idx].count++;
+    histogram.buckets[bucket_idx].count++;
   }
   
-  histogram.buckets = buckets;
-
   if (compute_windows) {
     for (float pct : Evaluator::PCT_WINDOWS) {
       Evaluator::ContainmentWindow window = getContainmentWindow(error_distances, pct);
@@ -457,7 +455,7 @@ Evaluator::ErrorHistogram getDistanceErrorHistogram(std::vector<float> error_dis
 }
 
 Evaluator::ErrorHistogram Evaluator::getAbsoluteDistanceErrorHistogram() {
-  return getDistanceErrorHistogram(dist_errors_,  0.5f, true);
+  return getDistanceErrorHistogram(dist_errors_, 0.5f, true);
 }
 
 Evaluator::ErrorHistogram Evaluator::getRelativeDistanceErrorHistogram() {
