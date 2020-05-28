@@ -302,13 +302,6 @@ int main(int argc, char **argv) {
                                      arr.shape[1],
                                      CV_32F,
                                      loaded_data);
-  
-    // TODO: Revisit how to resize the depth prediction. Maybe scale down the 
-    // ground truth depth to match the predicted depth image.
-    
-    // Resize and linearly interpolate the predicted depth image so that it 
-    // is the same size as the ground truth depth image
-//     cv::resize(depth_img_pred,depth_img_pred,depth_img_gt.size());
     
     // Ground truth and predicted point clouds
     sensor_msgs::PointCloud2 pt_cloud_gt;
@@ -381,6 +374,7 @@ int main(int argc, char **argv) {
                                             FLAGS_max_range,
                                             kMinObstacleHeight,
                                             kMaxObstacleHeight,
+                                            T_base2map,
                                             &proj_ptcloud_pred);
    
               
@@ -391,6 +385,7 @@ int main(int argc, char **argv) {
                                             FLAGS_max_range,
                                             kMinObstacleHeight,
                                             kMaxObstacleHeight,
+                                            T_base2map,
                                             &proj_ptcloud_gt);
     
     // std::cout << "Transformation: \n" << T_base2map << std::endl;

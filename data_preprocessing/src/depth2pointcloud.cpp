@@ -74,12 +74,7 @@ bool Depth2Pointcloud::GeneratePointcloud(
       Eigen::Vector4f pt_cam;
       pt_cam << point.x, point.y, point.z, 1.0;
 //       std::cout << pt_cam.transpose() << std::endl;
-      
-      // TODO: Here we are assuming that the terrain is flat and that the
-      // base_link is parallel to the terrain. The pose of the base_link with
-      // respect to the world frame should be taken into accound to be more
-      // accurate and consider the robot tilting due to suspension
-      
+     
       // Convert the 3d point to the base_link reference frame
       Eigen::Vector4f pt_base = T_cam2base_ * pt_cam;
       point.x = pt_base(0);
@@ -113,11 +108,19 @@ bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
                                             float range_max,
                                             float height_min,
                                             float height_max,
+                                            const Eigen::Matrix4f& T_base2map,
                                             ProjectedPtCloud* proj_ptcloud) {
   if (!calibration_is_loaded_) {
     std::cout << "Calibration files are not loaded." << std::endl;
     return false;
   }
+  // TODO: The ground plane height might be environment specific. Detecting
+  // the obstacles given the terrain roughness, the point cloud in the 
+  // base_link in conjuction with taking into accout the camera orientation
+  // seems to be the most general.
+  // Height of the ground plane in the map reference frame.
+  const float ground_level_height = 0.60;
+  
   float img_margin = img_margin_perc * depth_img.cols / 100.0f;
   float angle_max = atan((depth_img.cols - img_margin - cam_mat_(0,2)) / 
                                                         cam_mat_(0,0));
@@ -149,22 +152,24 @@ bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
       point = Calculate3DCoord(x, y, depth);
       Eigen::Vector4f pt_cam;
       pt_cam << point.x, point.y, point.z, 1.0;
-      
-      // TODO: Here we are assuming that the terrain is flat and that the
-      // base_link is parallel to the terrain. The pose of the base_link with
-      // respect to the world frame should be taken into accound to be more
-      // accurate and consider the robot tilting due to suspension
-      
+           
       // Convert the 3d point to the base_link reference frame
       Eigen::Vector4f pt_base = T_cam2base_ * pt_cam;
+    
+      // Convert the 3d point to the map reference frame
+      Eigen::Vector4f pt_map = T_base2map * pt_base;
       
       
+                
+      // TODO: Currently obstacles are detected given their height in the 
+      //  map reference frame. This is only accurate for flat maps. For
+      //  a more general solution, you can consider the terrain roughness.
       
       // TODO: For points with z < -min_height, project them to the ground
       // plane along the line to camera center. (This is to handle hole
       // locations more accurately)
-      if (pt_base(2) >= height_min && pt_base(2) <= height_max) {
-//       if (pt_base(2) >= height_min && pt_base(2) <= height_max) {
+      if (fabs(pt_map(2) - ground_level_height) >= height_min 
+          && (pt_map(2) - ground_level_height) <= height_max) {
         float angle = atan2(pt_base(1), pt_base(0));
         int index = 0;
         if(!CalculateLaserIndex(angle,

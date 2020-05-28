@@ -68,6 +68,7 @@ class Depth2Pointcloud{
                                 float range_max,
                                 float height_min,
                                 float height_max,
+                                const Eigen::Matrix4f& T_base2map,
                                 ProjectedPtCloud* proj_ptcloud);
   
   sensor_msgs::LaserScan ProjectedPtCloud_to_LaserScan(
