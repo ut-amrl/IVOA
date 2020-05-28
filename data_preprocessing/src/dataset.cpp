@@ -145,8 +145,8 @@ void Dataset::SaveToFile() {
 float Dataset::GetMinValueInMat(const cv::Mat& query_img,
                                 const cv::Mat& mask) {
   float min_val = std::numeric_limits<float>::max();
-  for (size_t i = 0; i < query_img.rows; i++) {
-    for (size_t j = 0; j < query_img.cols; j++) {
+  for (int i = 0; i < query_img.rows; i++) {
+    for (int j = 0; j < query_img.cols; j++) {
       if (min_val > query_img.at<float>(i, j) &&
           mask.at<uint8_t>(i,j)) {
         min_val = query_img.at<float>(i, j);

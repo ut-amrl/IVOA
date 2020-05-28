@@ -62,6 +62,13 @@ bool GetFileNamePrefixes(const std::string &directory,
 
 enum PFM_endianness { BIG, LITTLE, ERROR};
 
+inline void readFromStream(FILE* file, std::string format, char* c) {
+  if (fscanf(file, format.c_str(), c) == 0) {
+    std::cerr << "Error reading from stream" << std::endl;
+    exit(1);
+  }
+}
+
 class PFM {
 public:
   PFM();
@@ -75,8 +82,8 @@ public:
       //std::cout << "\n" << std::bitset<32>(endianness) << std::endl;
       unsigned char * temp = (unsigned char *)&endianness;
       //std::cout << std::bitset<8>(*temp) << std::endl;
-      PFM_endianness endianType_ = ((*temp) ^ 0xef == 0 ?
-          LITTLE : (*temp) ^ (0xde) == 0 ? BIG : ERROR);
+      PFM_endianness endianType_ = ((*temp ^ 0xef) == 0 ?
+          LITTLE : (*temp ^ 0xde) == 0 ? BIG : ERROR);
       // ".pfm" format file specifies that: 
       // positive scale means big endianess;
       // negative scale means little endianess.
@@ -91,17 +98,17 @@ public:
     pFile = fopen(filename.c_str(), "rb");
     char c[100];
     if (pFile != NULL) {
-      fscanf(pFile, "%s", c);
+      readFromStream(pFile, "%s", c);
       // strcmp() returns 0 if they are equal.
       if (!strcmp(c, "Pf")) {
-        fscanf(pFile, "%s", c);
+        readFromStream(pFile, "%s", c);
         // atoi: ASCII to integer.
         // itoa: integer to ASCII.
         this->width = atoi(c);
-        fscanf(pFile, "%s", c);
+        readFromStream(pFile, "%s", c);
         this->height = atoi(c);
-        int length_ = this->width * this->height;
-        fscanf(pFile, "%s", c);
+        unsigned int length_ = this->width * this->height;
+        readFromStream(pFile, "%s", c);
         this->endianess = atof(c);
 
         fseek(pFile, 0, SEEK_END);
@@ -111,7 +118,10 @@ public:
 
         T* img = new T[length_];
         //cout << "sizeof(T) = " << sizeof(T);
-        fread(img, sizeof(T), length_, pFile);
+        if (fread(img, sizeof(T), length_, pFile) != length_) {
+          std::cerr << "error reading image" << std::endl;
+          exit(1);
+        }
         fclose(pFile);
 
         /* The raster is a sequence of pixels, packed one after another,
@@ -123,7 +133,7 @@ public:
         //PFM SPEC image stored bottom -> top reversing image           
 
                         
-        for (int i = 0; i < this->height; i++) {
+        for (unsigned int i = 0; i < this->height; i++) {
             memcpy(&tbimg[(this->height - i - 1)*(this->width)],
                 &img[(i*(this->width))],
                 (this->width) * sizeof(T));
@@ -139,7 +149,7 @@ public:
               unsigned char u8[sizeof(T)];
           } source, dest;
 
-          for (int i = 0; i < length_; ++i) {
+          for (unsigned int i = 0; i < length_; ++i) {
             source.f = tbimg[i];
             for (unsigned int k = 0, s_T = sizeof(T); k < s_T; k++)
                 dest.u8[k] = source.u8[s_T - k - 1];
@@ -247,8 +257,8 @@ public:
   inline void setHeight(const int & h){height = h;}
   inline void setWidth(const int & w){width = w;}
 private:
-  int height;
-  int width;
+  unsigned int height;
+  unsigned int width;
   float endianess;
 };
 

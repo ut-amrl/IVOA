@@ -274,7 +274,7 @@ int main(int argc, char **argv) {
 
   
   int count = 0;
-  for (int idx = 0; idx < filename_prefixes.size(); idx++) {
+  for (size_t idx = 0; idx < filename_prefixes.size(); idx++) {
     const int& i = filename_prefixes[idx];
     
     stringstream ss;

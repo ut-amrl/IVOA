@@ -179,7 +179,8 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
 
   // Error Tracking
   std::vector<int> tmp(errors.size());
-  std::generate(tmp.begin(),tmp.end(),[n=0]()mutable{return n++;});
+  size_t n = 0;
+  std::generate(tmp.begin(),tmp.end(),[n]()mutable{return n++;});
   std::set<int> untracked_errors(tmp.begin(), tmp.end());
 
   #if DEBUG
@@ -368,7 +369,7 @@ Evaluator::ContainmentWindow getContainmentWindow(std::vector<float> distances, 
   float max_dist = max;
   float min_dist = 0.0f;
   float EPSILON = 1e-3;
-  float distance;
+  float distance = 0.0f;
   
   Evaluator::ContainmentWindow window;
   window.pct = pct;
@@ -423,7 +424,7 @@ Evaluator::ErrorHistogram getDistanceErrorHistogram(std::vector<float> error_dis
   float max = error_distances.back();
 
   Evaluator::ErrorHistogram histogram;
-  int num_buckets = (max - min) / bucket_size;
+  unsigned int num_buckets = (max - min) / bucket_size;
   std::vector<Evaluator::HistogramBucket> buckets(num_buckets);
 
   float lower = min;
@@ -465,7 +466,8 @@ Evaluator::ErrorHistogram Evaluator::getRelativeDistanceErrorHistogram() {
 
 Evaluator::ErrorHistogram Evaluator::getErrorTrackSizeHistogram() {
   std::vector<float> sizes(error_tracks_.size());
-  std::generate(sizes.begin(), sizes.end(), [this, n=0] () mutable { return error_tracks_[n++].loc_map_history.size(); });
+  size_t n = 0;
+  std::generate(sizes.begin(), sizes.end(), [this, n] () mutable { return error_tracks_[n++].loc_map_history.size(); });
   return getDistanceErrorHistogram(sizes, 1.0f, false);
 }
 
