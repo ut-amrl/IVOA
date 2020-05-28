@@ -10,6 +10,9 @@ Below is a list of the dependencies of this tool, but after using the above scri
 [cnpy](https://github.com/rogersce/cnpy)
 [pcl](https://pointclouds.org/)
 [ROS](https://www.ros.org/)
+[JsonCpp](https://github.com/open-source-parsers/jsoncpp)
+[YAMLcpp](https://github.com/jbeder/yaml-cpp)
+[Boost](https://www.boost.org/)
 
 
 ## Build
@@ -40,10 +43,13 @@ An example command:
 ./run_mltool_evaluation.bash /data/CAML/CRA_ML_tool/0015_20200325_420sec_daytime_wxclear/ /data/CAML/CRA_ML_tool/evaluation 15 /data/CAML/CRA_ML_tool/trajectories/state_20200325_420sec.txt 
 ```
 
-Running this script will evaluate the ML tool on the given input data and trajectory, and place results in a subfolder in the output directory.
+Running this script (`scripts/run_mltool_evaluation.bash`) will evaluate the ML tool on the given input data and trajectory, and place results in a subfolder in the output directory.
 
 The script will, by default, evaluate with a maximum range horizon of 10m, and ignore any errors for objects farther away than that. This can be changed by modifying the line:
 `MAX_RANGES=( 10 )` in the script. It supports evaluating over multiple ranges, each of which will be put in its own output subdirectory.
+After running the script, the output will be generated in `[OUT_DIR]/session_[SESSION_NUM]_range_[MAX_RANGE]` for each range specified in `MAX_RANGES`.
+
+In addition, the script specifies camera calibration files (Instrinsics+Extrinsics) for both the Ground Truth, and ML-Tool images. These can also be modified by manually editing the script.
 
 ## Visualize
 Once results have been generated, generating histograms can be done by running
@@ -59,4 +65,4 @@ An example command:
 python visualize_histograms.py --dir /data/CAML/CRA_ML_tool/evaluation/session_0015_range_10/
 ```
 
-Running this will output the histogram visualizations as `.png` files in the same subdirectory.
+Running this will output the histogram visualizations as `.png` files in the given directory.
