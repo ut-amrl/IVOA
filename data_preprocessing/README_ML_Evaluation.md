@@ -43,7 +43,7 @@ An example command:
 ./run_mltool_evaluation.bash /data/CAML/CRA_ML_tool/0015_20200325_420sec_daytime_wxclear/ /data/CAML/CRA_ML_tool/evaluation 15 /data/CAML/CRA_ML_tool/trajectories/state_20200325_420sec.txt 
 ```
 
-Running this script (`scripts/run_mltool_evaluation.bash`) will evaluate the ML tool on the given input data and trajectory, and place results in a subfolder in the output directory.
+Running this script (`scripts/run_mltool_evaluation.bash`) will evaluate the ML tool on the given input data and trajectory, and place results in a subfolder in the output directory. This folder contains data necessary for generating histograms, as well as a summary of statistics in a file named `prediction_label_statistics.txt`. Note that by default, these statistics are generate assuming that any error <= 1m is considered a correct depth estimate.
 
 The script will, by default, evaluate with a maximum range horizon of 10m, and ignore any errors for objects farther away than that. This can be changed by modifying the line:
 `MAX_RANGES=( 10 )` in the script. It supports evaluating over multiple ranges, each of which will be put in its own output subdirectory.
@@ -52,7 +52,7 @@ After running the script, the output will be generated in `[OUT_DIR]/session_[SE
 In addition, the script specifies camera calibration files (Instrinsics+Extrinsics) for both the Ground Truth, and ML-Tool images. These can also be modified by manually editing the script.
 
 ## Visualize
-Once results have been generated, generating histograms can be done by running
+Once results have been generated, generating histograms can be done by running:
 
 ```bash
 cd scripts
