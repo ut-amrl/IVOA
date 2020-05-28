@@ -261,6 +261,7 @@ int main(int argc, char **argv) {
     if (kVisualization) {
       sensor_msgs::PointCloud2 pointcloud2;
       if (depth_img_converter.GeneratePointcloud(depth_img_gt,
+                                                0,
                                                 &pointcloud2)) {
         point_cloud_publisher_gt.publish(pointcloud2);
       
@@ -272,6 +273,7 @@ int main(int argc, char **argv) {
       }
       
       if (depth_img_converter.GeneratePointcloud(depth_img_pred,
+                                                0,
                                                 &pointcloud2)) {
         point_cloud_publisher_pred.publish(pointcloud2);
       

@@ -8,7 +8,7 @@ then
   echo "USAGE: $0 SOURCE_DIR SESSION_NUM"
 fi
 
-CAM_EXTRINSICS_PATH="../util/Camera_Extrinsics.yaml"
+CAM_EXTRINSICS_PATH="../util/gt_depth_calibration.yaml"
 
 SOURCE_DIR=$1
 OUTPUT_DATASET_DIR="/data/CAML/IVOA_CRA/"
