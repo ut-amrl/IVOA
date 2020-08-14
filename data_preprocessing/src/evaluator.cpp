@@ -112,6 +112,7 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
   
   std::vector<Error> errors;
   
+  latest_frame_dist_errors_.clear();
   for(size_t i = 0; i < gt_scan.ranges.size(); i++) {
     if (gt_scan.ranges[i] < gt_scan.range_min) {
       continue;
@@ -129,6 +130,7 @@ unsigned int Evaluator::EvaluatePredictions(const ProjectedPtCloud& pred_scan,
     float dist_err = gt_scan.ranges[i] - pred_scan.ranges[i];
     float rel_dist_err = dist_err / gt_scan.ranges[i];
     float rel_err_thresh = rel_distance_err_thresh_ * gt_scan.ranges[i];
+    latest_frame_dist_errors_.push_back(-dist_err);
     dist_errors_.push_back(-dist_err); // for visualization we want prediction-actual
     rel_dist_errors_.push_back(-rel_dist_err);
 
@@ -296,6 +298,46 @@ sensor_msgs::PointCloud2 Evaluator::GetErrorsPointCloud() {
   return ptcloud;
 }
 
+float Evaluator::GetLatestFrameMedianAbsError(){
+  size_t obs_num = latest_frame_dist_errors_.size();
+  
+  vector<float> abs_err_values(obs_num);
+  for (size_t i = 0; i < obs_num; i++) {
+    abs_err_values[i] = fabs(latest_frame_dist_errors_[i]);
+  }
+  
+  if (obs_num == 0) {
+    return 0.0;
+  } else {
+    sort(abs_err_values.begin(), abs_err_values.end());
+    if (obs_num % 2 == 0) {
+      return (abs_err_values[obs_num / 2 - 1] 
+              + abs_err_values[obs_num / 2]) / 2;
+    }
+    else {
+      return abs_err_values[obs_num / 2];
+    }
+  }
+}
+
+float Evaluator::GetLatestFrameMeanAbsError(){
+  size_t obs_num = latest_frame_dist_errors_.size();
+  
+  vector<float> abs_err_values(obs_num);
+  for (size_t i = 0; i < obs_num; i++) {
+    abs_err_values[i] = fabs(latest_frame_dist_errors_[i]);
+  }
+  
+  if (obs_num == 0) {
+    return 0.0;
+  } else {
+    float sum_abs_err = 0.0;
+    for (size_t j = 0; j < abs_err_values.size(); j++) {
+      sum_abs_err += abs_err_values[j];
+    }
+    return sum_abs_err / static_cast<float>(obs_num);
+  }
+}
 
 void Evaluator::LocateError(const Eigen::Vector3f& pred_loc_in_cam,
                    const Eigen::Vector3f& gt_loc_in_cam,

@@ -102,6 +102,9 @@ class Evaluator{
   sensor_msgs::LaserScan GetFalsePositivesScan();
   sensor_msgs::LaserScan GetFalseNegativesScan();
   sensor_msgs::PointCloud2 GetErrorsPointCloud();
+  
+  float GetLatestFrameMedianAbsError();
+  float GetLatestFrameMeanAbsError();
 
   std::vector<std::vector<Error>>& GetErrors();
   std::vector<ErrorTrack>& GetErrorTracks();
@@ -133,6 +136,7 @@ class Evaluator{
   Eigen::Vector3f Calculate3DCoord(int u, int v, float raw_depth);
   
   std::vector<unsigned long int>prediction_label_counts_;
+  std::vector<float> latest_frame_dist_errors_;
   std::vector<float> dist_errors_;
   std::vector<float> rel_dist_errors_;
   unsigned long int frame_count = 0;

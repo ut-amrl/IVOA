@@ -76,6 +76,8 @@ DEFINE_double(margin_width, 5, "Margin around the edge of the images to throw "
 " width");
 DEFINE_bool(visualization, false, "Whether or not to publish visualization information while executing.");
 DEFINE_bool(debug, false, "Whether or not run with debugging visualizations and print statements.");
+DEFINE_bool(report_per_frame_err, true, "Whether or not to report the per"
+                                  "frame median absolute error values.");
 DECLARE_bool(help);
 DECLARE_bool(helpshort);
 
@@ -273,6 +275,15 @@ int main(int argc, char **argv) {
   T_ROS2NED = T_NED2ROS;
 
   
+  // List of median absolute distance error values per frame. 
+  // <frame_id, median_abs_err>
+  vector<std::pair<int, float>> median_abs_errors;
+  vector<std::pair<int, float>> mean_abs_errors;
+  if (FLAGS_report_per_frame_err) {
+    median_abs_errors.resize(filename_prefixes.size());
+    mean_abs_errors.resize(filename_prefixes.size());
+  }
+  
   int count = 0;
   for (size_t idx = 0; idx < filename_prefixes.size(); idx++) {
     const int& i = filename_prefixes[idx];
@@ -395,6 +406,13 @@ int main(int argc, char **argv) {
                                   T_base2map,
                                   static_cast<long unsigned int>(i),
                                   depth_img_gt);  
+    
+    if (FLAGS_report_per_frame_err) {
+      float median_err = evaluator.GetLatestFrameMedianAbsError();
+      float mean_err = evaluator.GetLatestFrameMeanAbsError();
+      median_abs_errors[idx] = make_pair(i, median_err);
+      mean_abs_errors[idx] = make_pair(i, mean_err);
+    }
 
     // Publish the filtered point clouds
     if (FLAGS_visualization) {
@@ -558,6 +576,23 @@ int main(int argc, char **argv) {
     rel_hist_window_file << window.pct << ", " << window.pos_bound << ", " << window.neg_bound << std::endl;
   }
   rel_hist_window_file.close();
+  
+  
+  if (FLAGS_report_per_frame_err) {
+    ofstream frame_abs_err_file;
+    frame_abs_err_file.open(FLAGS_output_dir + "/" + 
+                            "frame_abs_dist_error.csv");
+    
+    CHECK_EQ(median_abs_errors.size(), mean_abs_errors.size());
+    frame_abs_err_file << "# frame_index, median_abs_err, mean_abs_err" 
+                       << std::endl;
+    for(size_t i = 0; i < median_abs_errors.size(); i++) {
+      frame_abs_err_file << median_abs_errors[i].first << ", "
+                          << median_abs_errors[i].second << ", "
+                          << mean_abs_errors[i].second <<  std::endl;
+    }
+    frame_abs_err_file.close();
+  }
   return 0;
 }
 
