@@ -37,6 +37,7 @@ from skimage import io, transform
 from torchvision import transforms, utils
 from torchvision.utils import make_grid
 import matplotlib.pyplot as plt
+from matplotlib import cm
 from math import floor
 from collections import OrderedDict
 from data_loader.load_patches import FailureDetectionDataset
@@ -56,26 +57,41 @@ def onclick(event):
           ('double' if event.dblclick else 'single', event.button,
           event.x, event.y, event.xdata, event.ydata))
           
-def show_img(img, cluster_idx, save=True):
+def show_img(img, cluster_idx, save=True, member_count=None):
     npimg = img.numpy()
     fig = plt.figure()
     plt.imshow(np.transpose(npimg, (1,2,0)), interpolation='nearest')
     if save:
-        plt.imsave(target_dir + '/' + result_name  + '_cluster_{0}.png'.format(cluster_idx), np.transpose(npimg, (1,2,0)))
+        if member_count is not None:
+            suffix = '_cluster_{}_memberCount_{}.png'.format(cluster_idx, 
+                        member_count)
+        else:
+            suffix = '_cluster_{0}.png'.format(cluster_idx)
+        plt.imsave(target_dir + '/' + result_name  + suffix, 
+                   np.transpose(npimg, (1,2,0)))
+        # plt.imsave(target_dir + '/' + result_name  + '_cluster_{0}.png'.format(cluster_idx), np.transpose(npimg, (1,2,0)))
+
+def generate_colors(color_num):
+  start = 0.0
+  stop = 1.0
+  cm_subsection = np.linspace(start, stop, color_num) 
+
+  colors = [ cm.tab20b(x) for x in cm_subsection ]
+  return colors        
     
 if __name__ == "__main__":
   
-      LABEL_COLOR_MAP = {0 : 'b',
-                         1 : 'g',
-                         2 : 'r',
-                         3 : 'cyan',
-                         4 : 'magenta',
-                         5 : 'yellow',
-                         6 : 'black'}
+    #   LABEL_COLOR_MAP = {0 : 'b',
+    #                      1 : 'g',
+    #                      2 : 'r',
+    #                      3 : 'cyan',
+    #                      4 : 'magenta',
+    #                      5 : 'yellow',
+    #                      6 : 'black'}
   
-      source_dir = ("/data/CAML/IVOA_CRA/evaluation_multi_class_uncertainty")
-      target_dir = source_dir + '/clustering'
-      result_name = 'kmeans_r_3'
+      source_dir = ("/data/CAML/IVOA_ML_toolv2/dataset_000/evaluation_multi_class_uncertainty/alex_locked_a_last_model_017")
+      target_dir = source_dir + '/clustering_r_4c_unc.005_NoSub_pca100'
+      result_name = 'kmeans'
 
       #********************
       # Modify the following paths
@@ -83,11 +99,11 @@ if __name__ == "__main__":
 
       #****************************
       #********* Subsampled Mean MeanShift
-      tsne_res_path = (target_dir + '/clustered_embeddings_r_tsne_res.csv')
-      tsne_patch_indices_path = (target_dir + '/clustered_embeddings_r_patch_indices.csv')
-      clustering_res_path = (target_dir + '/clustered_embeddings_r_kmeans.pkl')
+      tsne_res_path = (target_dir + '/clustered_embeddings_tsne_res.csv')
+      tsne_patch_indices_path = (target_dir + '/clustered_embeddings_patch_indices.csv')
+      clustering_res_path = (target_dir + '/clustered_embeddings_kmeans.pkl')
 
-      dataset_path = "/data/CAML/IVOA_CRA/"
+      dataset_path = "/data/CAML/IVOA_ML_toolv2/dataset_000/"
 
       #----------------------------------
       # Parameters
@@ -99,28 +115,33 @@ if __name__ == "__main__":
       
       CLUSTER_NUM = 3
       
-      VIS_SAMPLE_NUM = 50
+      VIS_SAMPLE_NUM = 50 # 50
       VIS_GRID_ROW = 5
-      VIS_GRID_COL = 10
+      VIS_GRID_COL = 10 # 10
       
       PATCH_SIZE = 50
       
-      sessions_list = [1, 2, 3, 4, 5]
+      sessions_list = [13, 17, 20, 22, 23]
       
       device = "cpu"
 
       # Colors assigned to cluster numbers
-      LABEL_COLOR_MAP = {0: 'b',
-                         1: 'g',
-                         2: 'r',
-                         3: 'cyan',
-                         4: 'magenta',
-                         5: 'yellow',
-                         6: 'black'}
+    #   LABEL_COLOR_MAP = {0: 'b',
+    #                      1: 'g',
+    #                      2: 'r',
+    #                      3: 'cyan',
+    #                      4: 'magenta',
+    #                      5: 'yellow',
+    #                      6: 'black'}
 
       #-----------------------------------
       # Initializations
-      
+
+      # This will be set to True if existing index files indicate that 
+      # during dimensionality reduction (dimensionality_reduction.py) datapoints
+      # have been subsampled.
+      dim_reduction_with_subsamp = False
+
       data_transform = transforms.Compose([
           transforms.CenterCrop(PATCH_SIZE),
           transforms.ToTensor()
@@ -140,7 +161,21 @@ if __name__ == "__main__":
       
       # Load the saved results of t-SNE
       tsne_res = np.loadtxt(tsne_res_path, dtype=float)
+
+      # Check if datapoints have been further subsampled during execution of
+      # dimensionality_reduction.py and load the corresponding patch index file.
+      tsne_subsampled_indices_path = os.path.join(target_dir, 
+                    'clustered_embeddings_patch_indices_vis_subsample.csv')
+      if os.path.exists(tsne_subsampled_indices_path):
+        print('Patch index file {} was found. \nLoading indices of datapoints '
+               'subsampled by dimensionality_reduction.py'.format(tsne_subsampled_indices_path))
+        tsne_sub_samp_patch_ind = np.loadtxt(tsne_subsampled_indices_path, dtype=int)
+        dim_reduction_with_subsamp = True
+      
       tsne_patch_ind = np.loadtxt(tsne_patch_indices_path, dtype=int)
+      if dim_reduction_with_subsamp:
+        tsne_patch_ind = tsne_patch_ind[tsne_sub_samp_patch_ind]
+
 
       if CLUSTER_IN_ORIGINAL_SPACE:
           if CLUSTERING_METHOD == 'kmeans':
@@ -186,22 +221,29 @@ if __name__ == "__main__":
           clustering = DBSCAN(eps=100, min_samples=50, 
                             n_jobs=4, algorithm='brute').fit(tsne_res)
       
-     
+      if dim_reduction_with_subsamp:
+          selected_embeddings = selected_embeddings[tsne_sub_samp_patch_ind]
+          clustering.labels_ = clustering.labels_[tsne_sub_samp_patch_ind]
      
       # Setup event callback for the figure
       fig, ax = plt.subplots()
       #cid = fig.canvas.mpl_connect('button_press_event', onclick)
      
 
-      # Plot the output of t-SNE
-      plt.scatter(tsne_res[:,0], tsne_res[:,1])
-      plt.title("t-SNE Output")
       
+      LABEL_COLOR_MAP = generate_colors(CLUSTER_NUM)
       
       # Plot the result of clustering on the t-SNE output
-      label_color = [LABEL_COLOR_MAP[l] for l in clustering.labels_]
-      plt.scatter(tsne_res[:,0], tsne_res[:,1], c=label_color)
+      fig, ax = plt.subplots() 
+      for i in range(CLUSTER_NUM):
+          indices = clustering.labels_ == i
+          label_color = LABEL_COLOR_MAP[i]
+          label = str(i)
+          plt.scatter(tsne_res[indices,0], tsne_res[indices,1], 
+                      color=label_color, 
+                      label=label)
       plt.title("K-Means clustering result")
+      plt.legend()
       
       #--------------------------------------
       # Randomly sample points from each cluster and visualize the
@@ -209,34 +251,54 @@ if __name__ == "__main__":
       cluster_indices = {}
       cluster_samples = np.zeros((VIS_SAMPLE_NUM, CLUSTER_NUM), dtype=int)
       for i in range(CLUSTER_NUM):
-          cluster_indices[i] = np.argwhere(clustering.labels_ == i)
-          
-          # Give high weight to points close to the cluster center
-          cluster_size = cluster_indices[i].size
-          cluster_ctr = cluster_centers[i,:]
-          if CLUSTER_IN_ORIGINAL_SPACE:
-              datapoints = selected_embeddings
-          else:
-              datapoints = tsne_res
-          dist_to_ctr = (datapoints[cluster_indices[i].flatten(), :] - 
-                        np.matlib.repmat(cluster_ctr, cluster_size, 1))
-          dist_to_ctr_norm = np.linalg.norm(dist_to_ctr, axis=1)
-          sampling_weight = 1.0 / (0.1 + dist_to_ctr_norm)
-          sampling_weight = sampling_weight / np.sum(sampling_weight)
-          
-          cluster_samples[:,i] = np.random.choice(cluster_indices[i].flatten(),
-                              size=VIS_SAMPLE_NUM, p=sampling_weight)
+        cluster_indices[i] = np.argwhere(clustering.labels_ == i)
+        
+        # Give high weight to points close to the cluster center
+        cluster_size = cluster_indices[i].size
+        cluster_ctr = cluster_centers[i,:]
+        if CLUSTER_IN_ORIGINAL_SPACE:
+            datapoints = selected_embeddings
+        else:
+            datapoints = tsne_res
+        dist_to_ctr = (datapoints[cluster_indices[i].flatten(), :] - 
+                    np.matlib.repmat(cluster_ctr, cluster_size, 1))
+        dist_to_ctr_norm = np.linalg.norm(dist_to_ctr, axis=1)
+        # print('************************')
+        # print('max dist: ', np.max(dist_to_ctr_norm))
+        # print('min dist: ', np.min(dist_to_ctr_norm))
+        min_dist = np.min(dist_to_ctr_norm)
+        max_dist = np.max(dist_to_ctr_norm)
+        dist_range = max_dist - min_dist
+        dist_to_ctr_norm = (dist_to_ctr_norm - min_dist)
+        if dist_range > 0.00001:
+            dist_to_ctr_norm /= dist_range
+
+        sampling_weight = 1.0 / (0.01 + dist_to_ctr_norm * dist_to_ctr_norm)
+        
+        sampling_weight = sampling_weight / np.sum(sampling_weight)
+        sample_with_replacement = False
+        if VIS_SAMPLE_NUM > cluster_size:
+            print('NOTICE: There exist only {} datapoints in cluster# {}'.format
+                    (cluster_size, i))
+            sample_with_replacement = True
+
+        cluster_samples[:,i] = np.random.choice(cluster_indices[i].flatten(),
+                            size=VIS_SAMPLE_NUM, p=sampling_weight, replace=sample_with_replacement)
+
       
       # Plot the sampled points on each cluster
-      fig2, ax = plt.subplots()
-      label_color = [LABEL_COLOR_MAP[l] for l in clustering.labels_]
-      plt.scatter(tsne_res[:,0], tsne_res[:,1], c=label_color)
-      plt.title("K-Means clustering result")
-      
+      fig2, ax = plt.subplots() 
       for i in range(CLUSTER_NUM):
+          indices = clustering.labels_ == i
+          label_color = LABEL_COLOR_MAP[i]
+          label = str(i)
+          plt.scatter(tsne_res[indices,0], tsne_res[indices,1], 
+                      color=label_color, 
+                      label=label)
           plt.scatter(tsne_res[cluster_samples[:,i],0],
                       tsne_res[cluster_samples[:,i],1], c='black')
-      
+      plt.title("K-Means clustering result")
+      plt.legend()
       
       
       # Visualize the image patches
@@ -252,7 +314,12 @@ if __name__ == "__main__":
                                     patch.shape[2])
               patch_list = torch.cat((patch_list, patch),0)
               
-          show_img(make_grid(patch_list, nrow=VIS_GRID_ROW), i)
+          member_count = None
+          cluster_size = cluster_indices[i].size
+          if VIS_SAMPLE_NUM > cluster_size:    
+              member_count = cluster_size
+          show_img(make_grid(patch_list, nrow=VIS_GRID_ROW), i, 
+                   member_count=member_count)
           #full_img = transforms.ToPILImage()(full_img[0, :, :, :])
           #full_img = full_img.convert(mode = "RGB")
       

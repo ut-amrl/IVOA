@@ -246,10 +246,13 @@ if __name__=="__main__":
                           'bagfile. Only applicable if a single bagfile is '
                           'requested to be processed.'), 
                         type=int, required=False)
-    parser.add_argument('--bagfile_id', default=None, 
-                        help=('Bagfile to be processed. This argument only'
-                          ' accepts a single bagfile number.'), 
-                        type=int, required=False)
+    # parser.add_argument('--bagfile_id', default=None, 
+    #                     help=('Bagfile to be processed. This argument only'
+    #                       ' accepts a single bagfile number.'), 
+    #                     type=int, required=False)
+    parser.add_argument('--bagfile_id', nargs='+', 
+                        help='Bagfile to be processed (space separated)',   
+                        type=int, required=True)
     
     args = parser.parse_args()
     
@@ -294,9 +297,11 @@ if __name__=="__main__":
     AVAILABLE_MODELS = ['alex_bin', 'alex_multi', 'obs_detection']
     USE_COLORING_MASK = True
     USE_MULTI_GPU = True
+    gpus_requested = [0]
+
     DATASET_IMAGE_CHANNEL = 3 # number of channels of the dataset
     BATCH_SIZE = 1
-    NUM_WORKERS = 2 
+    NUM_WORKERS = 1 
    
     
 
@@ -306,7 +311,8 @@ if __name__=="__main__":
     if args.workers_num:
         NUM_WORKERS = args.workers_num
     if args.bagfile_id:
-        bagfile_list_test = [args.bagfile_id]
+        # bagfile_list_test = [args.bagfile_id]
+        bagfile_list_test = args.bagfile_id
  
     if not(MODEL_TYPE in AVAILABLE_MODELS):
         print(MODEL_TYPE, " not available. Choose from ", AVAILABLE_MODELS)
@@ -418,10 +424,15 @@ if __name__=="__main__":
         net.load_state_dict(state_dict)
         
     if USE_GPU and USE_MULTI_GPU:
-      if torch.cuda.device_count() > 1:
-          used_gpu_count = torch.cuda.device_count()
-          print("Using ", used_gpu_count, " GPUs.")
-          net = nn.DataParallel(net)
+        if torch.cuda.device_count() > 1:
+            if gpus_requested is not None:
+                used_gpu_count = len(gpus_requested)
+                print("Using ", used_gpu_count, " GPUs.")
+                net = nn.DataParallel(net, device_ids=gpus_requested)
+            else:
+                used_gpu_count = torch.cuda.device_count()
+                print("Using ", used_gpu_count, " GPUs.")
+                net = nn.DataParallel(net)
         
     net = net.to(device)
    

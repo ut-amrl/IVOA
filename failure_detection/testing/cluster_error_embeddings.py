@@ -49,29 +49,33 @@ from analyze_results import *
 
 
 if __name__ == "__main__":
-    source_dir = ("/data/CAML/IVOA_CRA/evaluation_multi_class_uncertainty")
+    source_dir = ("/data/CAML/IVOA_ML_toolv2/dataset_000/evaluation_multi_class_uncertainty/alex_locked_a_last_model_017/")
 
-    target_dir = source_dir + '/clustering'
+    target_dir = source_dir + '/clustering_r_4c_unc.005_NoSub_pca100'
     
     # **** 2048 embedding size:
-    files_of_interes_patch_info = [ source_dir + "/embeddings/embeddings" + 
-        "embeddings_test_1_patch_info.json"]
-    files_of_interest_embeddings = [ source_dir + "/embeddings/embeddings" +
-        "embeddings_test_1_patch_embeddings.csv"]
+    files_of_interes_patch_info = [ source_dir + "/embeddings/embeddings/" + 
+        "embeddings_r_test_3_patch_info.json"]
+    files_of_interest_embeddings = [ source_dir + "/embeddings/embeddings/" +
+        "embeddings_r_test_3_patch_embeddings.csv"]
     files_of_interest_prediction = [ source_dir + "/" + 
-        "evaluation_multi_class_uncertainty_test_1_data.json"]
+        "evaluation_multi_class_uncertainty_test_3_data.json"]
     
     result_file_name = (
       "/clustered_embeddings")
         
     #********************
     #### Parameters
-    UNCERTAINTY_THRESH = 0.03
-    CLUSTER_NUM = 3
+    UNCERTAINTY_THRESH = 0.005 # def: 0.03
+    CLUSTER_NUM = 4
     CLUSTERING_METHOD = 'kmeans' # {'kmeans','dbscan', 'MeanShift'}
     
-    SUBSAMPLE_DATA = True
-    SUBSAMPLING_RATIO = 0.05
+    SUBSAMPLE_DATA = False
+    SUBSAMPLING_RATIO = 0.05 # def: 0.05
+
+    # Runs dimensionality reduction before clustering
+    APPLY_DIM_REDUCTION = True
+    n_pca_components = 100
     
     #********************
     #*** Loading data
@@ -130,6 +134,19 @@ if __name__ == "__main__":
     selected_embeddings = embeddings[final_mask, :]
     print("Size of selected embeddings: ", selected_embeddings.shape)
     
+    # ******************************
+    # ** Dimensionality Reduction **
+    # ******************************
+    if APPLY_DIM_REDUCTION:
+        pca_50 = PCA(n_components=n_pca_components)
+        pca_result_50 = pca_50.fit_transform(selected_embeddings)
+        print ('Cumulative explained variation for {} principal '
+            'components:{}'.format(n_pca_components, 
+                            np.sum(pca_50.explained_variance_ratio_)))
+        
+        print('PCA result size: ', pca_result_50.shape)
+        selected_embeddings = pca_result_50
+
     # *****************
     # **** Clustering**
     # *****************
@@ -160,3 +177,4 @@ if __name__ == "__main__":
         afile.close()
     print('Saved the result of the clustering in embedding space.')
     print('Clustering method: ', CLUSTERING_METHOD)
+    print('Target file location: ', file_path)

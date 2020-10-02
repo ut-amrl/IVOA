@@ -187,13 +187,20 @@ if __name__=="__main__":
     DATASET_IMAGE_CHANNEL = 3 # number of channels of the dataset
     LOAD_MODEL_WEIGHTS = True
     USE_MULTI_GPU = True
+    # gpus_requested = [i for i in range(4)]
+    # gpus_requested = [0]
+    gpus_requested = None
+
     #BATCH_SIZE = 2000 # 400
     #NUM_WORKERS = 12 # Allocate 4 GPUs and 6 Cpus
     BATCH_SIZE = 4096 # 400
-    NUM_WORKERS = 16 # Allocate 4 GPUs and 6 Cpus
+    NUM_WORKERS = 12 # Allocate 4 GPUs and 6 Cpus
+    
     
     test_set_dict = {
-      "test_1":[1, 2, 3, 4, 5]
+      "test_1":[1, 2, 3, 4, 5],
+      "test_2":[13, 14, 17, 20, 22, 23],
+      "test_3":[13, 17, 20, 22, 23] 
     }
    
     
@@ -302,10 +309,15 @@ if __name__=="__main__":
     
     
     if USE_GPU and USE_MULTI_GPU:
-      if torch.cuda.device_count() > 1:
-          used_gpu_count = torch.cuda.device_count()
-          print("Using ", used_gpu_count, " GPUs.")
-          net = nn.DataParallel(net)
+        if torch.cuda.device_count() > 1:
+            if gpus_requested is not None:
+                used_gpu_count = len(gpus_requested)
+                print("Using ", used_gpu_count, " GPUs.")
+                net = nn.DataParallel(net, device_ids=gpus_requested)
+            else:
+                used_gpu_count = torch.cuda.device_count()
+                print("Using ", used_gpu_count, " GPUs.")
+                net = nn.DataParallel(net)
           
     net = net.to(device)
     

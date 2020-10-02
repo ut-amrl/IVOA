@@ -497,12 +497,12 @@ cv::Mat Dataset::AnnotateImageComprehensive(const cv::Mat &image) {
                radius_label, 
                label_color, 
                -1, 8, 0);
-    cv::circle(annotated_img, patch_coord_[i], radius_gt, gt_color, -1, 8, 0);
-    cv::circle(annotated_img, 
-               patch_coord_[i], 
-               radius_pred, 
-               pred_color, 
-               -1, 8, 0);
+    // cv::circle(annotated_img, patch_coord_[i], radius_gt, gt_color, -1, 8, 0);
+    // cv::circle(annotated_img, 
+    //            patch_coord_[i], 
+    //            radius_pred, 
+    //            pred_color, 
+    //            -1, 8, 0);
    
   }
   

@@ -79,13 +79,13 @@ const double kObstacleRatioThresh = 0.05;
 // more than max(kDistanceErrThresh, kRelativeErrThresh * TrueDistance), it 
 // will be labeled as either FP (if pred_dist < gt_dist) or FN (if pred_dist > 
 // gt_dist)
-const float kDistanceErrThresh = 1.0; // meters
-const float kRelativeDistanceErrThresh = 0.1;
+const float kDistanceErrThresh = 0.5; // meters def: 1.0
+const float kRelativeDistanceErrThresh = 0.1; // def: 0.1
 
 // Objects that are further than max_range_ away from the agent will not be
 // used for training. A negative value implies that the max_range
 // constraint will not be enforced
-const float kMaxRange = 50.0; // meters
+const float kMaxRange = 10.0; // meters
 const cv::Size kImageSize(960, 600);
 
 // Checks if all required command line arguments have been set

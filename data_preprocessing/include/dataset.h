@@ -211,8 +211,10 @@ private:
   const std::string kLeftCamFolder_ = "images/left_cam/";
   const std::string kLeftCamPatchesFolder_ = "images/left_cam_patch/";
   const std::string kLeftCamAnnotatedFolder_ = "images/left_cam_annotated/";
+  // const std::string kLeftCamAnnotatedComprehensiveFolder_ = 
+  //                                         "images/left_cam_annotated_comp/";
   const std::string kLeftCamAnnotatedComprehensiveFolder_ = 
-                                          "images/left_cam_annotated_comp/";
+                                          "images/left_cam_annotated_comp_simplified/";
   
   // This file stores the corresponding data for each full image
   const std::string kFullImageDataFile_ = "full_images_data.json";

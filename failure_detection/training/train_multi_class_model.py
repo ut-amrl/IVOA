@@ -144,13 +144,14 @@ if __name__=="__main__":
     LOAD_MULTI_GPU_MODEL = True
     DATASET_IMAGE_CHANNEL = 3 # number of channels of the dataset images
     LOAD_MODEL_WEIGHTS = True
+    gpus_requested = None
 
     MODEL_LOAD_DIR =(
-                  "/data/CAML/IVOA_CRA/models/snapshot/"
-                  "cra_full_train_model_unlocked_best_model_010.pt")
+                  "/data/CAML/IVOA_ML_toolv2/dataset_000/models/snapshot/"
+                  "alex_locked_a_last_model_017.pt")
    
   
-    EPOCH_NUM = 30
+    EPOCH_NUM = 100
     SNAPSHOT_FREQ = 1 # take a snapshot once every 2 epochs
     #BATCH_SIZE = 400 # 
     #NUM_WORKERS = 12 # Allocate 4 GPUs and 6 Cpus
@@ -160,8 +161,10 @@ if __name__=="__main__":
     #NUM_WORKERS = 24 # Allocate 8 GPUs and 12 Cpus
     #NUM_WORKERS = 2 # Allocate 8 GPUs and 12 Cpus
 
-    BATCH_SIZE = 4096 #
-    NUM_WORKERS = 16 #
+    # BATCH_SIZE = 4096 #
+
+    BATCH_SIZE = 2048
+    NUM_WORKERS = 12 #
     
     train_set_dict = {
       "train_1":[10, 11, 12, 13, 14, 15, 16]
@@ -303,9 +306,14 @@ if __name__=="__main__":
     
     if USE_MULTI_GPU:
       if torch.cuda.device_count() > 1:
-          used_gpu_count = torch.cuda.device_count()
-          print("Using ", used_gpu_count, " GPUs.")
-          net = nn.DataParallel(net)
+          if gpus_requested is not None:
+              used_gpu_count = len(gpus_requested)
+              print("Using ", used_gpu_count, " GPUs.")
+              net = nn.DataParallel(net, device_ids=gpus_requested)
+          else:
+              used_gpu_count = torch.cuda.device_count()
+              print("Using ", used_gpu_count, " GPUs.")
+              net = nn.DataParallel(net)
 
     net = net.to(device)
     
