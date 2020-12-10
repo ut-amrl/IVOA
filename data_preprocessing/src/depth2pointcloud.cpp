@@ -28,6 +28,9 @@ using Eigen::Map;
 using std::cout;
 using std::endl;
 
+DEFINE_double(ground_plane_height, 0.6, "Height of the ground plane "
+              "in meters. This can be environment dependent.");
+
 const int EPSILON = 1e-5;
 
 namespace IVOA {
@@ -118,8 +121,6 @@ bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
   // the obstacles given the terrain roughness, the point cloud in the 
   // base_link in conjuction with taking into accout the camera orientation
   // seems to be the most general.
-  // Height of the ground plane in the map reference frame.
-  const float ground_level_height = 0.60;
   
   float img_margin = img_margin_perc * depth_img.cols / 100.0f;
   float angle_max = atan((depth_img.cols - img_margin - cam_mat_(0,2)) / 
@@ -168,8 +169,8 @@ bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
       // TODO: For points with z < -min_height, project them to the ground
       // plane along the line to camera center. (This is to handle hole
       // locations more accurately)
-      if (fabs(pt_map(2) - ground_level_height) >= height_min 
-          && (pt_map(2) - ground_level_height) <= height_max) {
+      if (fabs(pt_map(2) - FLAGS_ground_plane_height) >= height_min 
+          && (pt_map(2) - FLAGS_ground_plane_height) <= height_max) {
         float angle = atan2(pt_base(1), pt_base(0));
         int index = 0;
         if(!CalculateLaserIndex(angle,

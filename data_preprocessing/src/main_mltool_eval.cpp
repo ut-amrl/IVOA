@@ -71,6 +71,11 @@ DEFINE_string(gt_cam_cal_path, "", "Path to the file containing the "
                       "ground truth depth calibration.");
 DEFINE_string(trajectory_path, "", "Path to the trajectory file to use.");
 DEFINE_string(output_dir, "", "Path to save the generated results. ");
+DEFINE_string(pred_depth_fmt, "npy", "Format of the predicted depth images."
+            " Select between {npy, pfm}");
+DEFINE_string(pred_depth_folder, "img_left", 
+              "Name of the folder under the source_dir where predicted "
+              "depth images are stored.");
 DEFINE_double(margin_width, 5, "Margin around the edge of the images to throw "
 " out during evaluation. Value is interpreted as the percentage of the image"
 " width");
@@ -193,7 +198,8 @@ int main(int argc, char **argv) {
   }
   CheckCommandLineArgs(argv);
   
-  ros::init(argc, argv, "mltool_evaluation");
+  ros::init(argc, argv, "mltool_evaluation", 
+            ros::init_options::NoSigintHandler);
   ros::NodeHandle nh;
  
   
@@ -245,7 +251,8 @@ int main(int argc, char **argv) {
  
 
   string gt_depth_dir = FLAGS_source_dir + "/img_depth/";
-  string pred_depth_dir = FLAGS_source_dir + "/img_left/";
+  string pred_depth_dir = FLAGS_source_dir + "/" 
+                         + FLAGS_pred_depth_folder + "/";
   string left_img_dir = FLAGS_source_dir + "/img_left/";
  
   // Read the prefix of all avaiable datapoints
@@ -292,8 +299,16 @@ int main(int argc, char **argv) {
     ss << setfill('0') << setw(10) << i;
     string prefix = ss.str();
     string gt_depth_path = gt_depth_dir + prefix + ".pfm";
-    string pred_depth_path = pred_depth_dir + prefix + "_disp.npy";
     string left_img_path = left_img_dir + prefix + ".png";
+    string pred_depth_path;
+    if (FLAGS_pred_depth_fmt == "npy") {
+      pred_depth_path = pred_depth_dir + prefix + "_disp.npy";
+    } else if (FLAGS_pred_depth_fmt == "pfm") {
+      pred_depth_path = pred_depth_dir + prefix + ".pfm";
+    } else {
+      LOG(FATAL) << "Unknown predicted depth image format " 
+                 << FLAGS_pred_depth_fmt;
+    }
 
     // Read the Ground truth depth image
     PFM pfm_rw;
@@ -307,12 +322,28 @@ int main(int argc, char **argv) {
     
 
     // Read the predicted depth image
-    cnpy::NpyArray arr = cnpy::npy_load(pred_depth_path);
-    float* loaded_data = arr.data<float>();
-    cv::Mat depth_img_pred = cv::Mat(arr.shape[0],
-                                     arr.shape[1],
-                                     CV_32F,
-                                     loaded_data);
+    cv::Mat depth_img_pred;
+    if (FLAGS_pred_depth_fmt == "npy") {
+      cnpy::NpyArray arr = cnpy::npy_load(pred_depth_path);
+      float* loaded_data = arr.data<float>();
+      depth_img_pred = cv::Mat(arr.shape[0],
+                                      arr.shape[1],
+                                      CV_32F,
+                                      loaded_data);
+    } else if (FLAGS_pred_depth_fmt == "pfm") {
+      PFM pfm_rw_p;
+      float * pred_depth_data = 
+                    pfm_rw_p.read_pfm<float>(pred_depth_path);
+      depth_img_pred = cv::Mat(pfm_rw_p.getHeight(), 
+                                  pfm_rw_p.getWidth(), 
+                                  CV_32F, 
+                                  pred_depth_data);
+      // cv::flip(depth_img_pred, depth_img_pred, 0);
+    } else {
+      LOG(FATAL) << "Unknown predicted depth image format " 
+                 << FLAGS_pred_depth_fmt;
+    }
+
     
     // Ground truth and predicted point clouds
     sensor_msgs::PointCloud2 pt_cloud_gt;
