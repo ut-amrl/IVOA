@@ -107,6 +107,11 @@ class Depth2Pointcloud{
   // Given the pixel coordinates and the depth reading, it generates the
   // corresponding 3d point (in meters)
   geometry_msgs::Point32 Calculate3DCoord(int u, int v, float r);
+
+  // Finds the intersection of the line that projects a given 3D point on to
+  // the camera plane with the ground plane.
+  bool IntersectProjectionWithGroundPlane(const Eigen::Vector4f& pt_base,
+                                          Eigen::Vector4f* pt_base_projected);
   
   bool CalculateLaserIndex(float angle_rad,
                            float angle_min,

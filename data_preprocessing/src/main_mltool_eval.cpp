@@ -79,6 +79,8 @@ DEFINE_string(pred_depth_folder, "img_left",
 DEFINE_double(margin_width, 5, "Margin around the edge of the images to throw "
 " out during evaluation. Value is interpreted as the percentage of the image"
 " width");
+DEFINE_double(laser_angle_increment, 0.5, "Angle increment value in degrees "
+                "for the 2D laserscan that is extracted from depth images.");
 DEFINE_bool(visualization, false, "Whether or not to publish visualization information while executing.");
 DEFINE_bool(debug, false, "Whether or not run with debugging visualizations and print statements.");
 DEFINE_bool(report_per_frame_err, true, "Whether or not to report the per"
@@ -97,7 +99,7 @@ DEFINE_double(max_range, 40.0, "Max range to consider for depth prediction evalu
 DEFINE_double(distance_err_thresh, 1.0, "Error distance past which we classify predictions as FP or FN.");
 DEFINE_double(relative_distance_err_thresh, 0.0, "RElativerror distance past which we classify predictions as FP or FN.");
 
-const float kMinObstacleHeight = 0.3; // meters
+const float kMinObstacleHeight = 0.5; // meters
 const float kMaxObstacleHeight = 2.0; // meters
 
 // TODO: Load camera intrinsics from file as well, so that the scaled down 
@@ -105,9 +107,9 @@ const float kMaxObstacleHeight = 2.0; // meters
 
 // Parameters of the virtual 2D laser scan
 const float kMinRange = 0.1; // meters
-const float kAngleIncrementLaser = 0.5 * M_PI / 180.0; // down to 0.2 degrees
-                                           // should be fine for image width 
-                                           // of 480
+float kAngleIncrementLaser; // down to 0.2 degrees
+                            // should be fine for image width 
+                            // of 480
 
 // The minimum length below which we don't visualize error tracks
 const int kErrorTrackMinLength = 1;
@@ -248,6 +250,8 @@ int main(int argc, char **argv) {
                       FLAGS_relative_distance_err_thresh,
                       FLAGS_visualization);
   evaluator.LoadCameraCalibration(FLAGS_gt_cam_cal_path);
+
+  kAngleIncrementLaser = FLAGS_laser_angle_increment * M_PI / 180.0;
  
 
   string gt_depth_dir = FLAGS_source_dir + "/img_depth/";

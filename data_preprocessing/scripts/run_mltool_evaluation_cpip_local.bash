@@ -47,7 +47,9 @@ $RANGE_NUM_STR"
     --visualization=$VISUALIZATION \
     --pred_depth_fmt="pfm" \
     --pred_depth_folder="pred_depth" \
-    --ground_plane_height="0.0"
+    --ground_plane_height="0.0" \
+    --distance_err_thresh="1.5" \
+    --laser_angle_increment="2.0"
   done
 done
 

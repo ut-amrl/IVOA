@@ -62,17 +62,31 @@ DEFINE_string(source_dir, "", "Path to the base directory of the source "
 DEFINE_string(cam_extrinsics_path, "", "Path to the file containing the "
                                        "left camera calibration file.");
 DEFINE_string(output_dataset_dir, "", "Path to save the generated datatset. ");
+DEFINE_string(pred_depth_fmt, "npy", "Format of the predicted depth images."
+            " Select between {npy, pfm}");
+DEFINE_string(pred_depth_folder, "img_left", 
+              "Name of the folder under the source_dir where predicted "
+              "depth images are stored.");
+DEFINE_double(margin_width, 5, "Margin around the edge of the images to throw "
+" out during evaluation. Value is interpreted as the percentage of the image"
+" width");
 DECLARE_bool(help);
 DECLARE_bool(helpshort);
 
+// Objects that are further than max_range_ away from the agent will not be
+// considered for obstacle avoidance. A negative value implies that the 
+// max_range constraint will not be enforced
+DEFINE_double(max_range, 50.0, "Max range to consider for depth prediction evaluation");
+
+DEFINE_bool(visualization, false, "Whether or not to publish visualization information while executing.");
+DEFINE_bool(debug, false, "Whether or not run with debugging visualizations and print statements.");
+
 
 // Parameters
-const float kPositiveHeightObsThresh = 0.3; // meters
-const float kNegativeHeightObsThresh = 0.3; // meters
-const bool kVisualization = false;
+const float kPositiveHeightObsThresh = 0.5; // meters
+const float kNegativeHeightObsThresh = 0.5; // meters
 const float kPatchSize = 50;
 const float kPatchStride = 30;
-const float kMarginWidth = 5;
 const double kObstacleRatioThresh = 0.05;
 
 // If the predicted distance to obstacle is off from the ground truth by
@@ -82,10 +96,6 @@ const double kObstacleRatioThresh = 0.05;
 const float kDistanceErrThresh = 1.0; // meters
 const float kRelativeDistanceErrThresh = 0.1;
 
-// Objects that are further than max_range_ away from the agent will not be
-// used for training. A negative value implies that the max_range
-// constraint will not be enforced
-const float kMaxRange = 50.0; // meters
 const cv::Size kImageSize(960, 600);
 
 // Checks if all required command line arguments have been set
@@ -149,7 +159,8 @@ int main(int argc, char **argv) {
   }
   CheckCommandLineArgs(argv);
   
-  ros::init(argc, argv, "IVOA_data_preprocessing");
+  ros::init(argc, argv, "IVOA_data_preprocessing",
+            ros::init_options::NoSigintHandler);
   ros::NodeHandle nh;
  
   
@@ -172,13 +183,15 @@ int main(int argc, char **argv) {
  
 
   string gt_depth_dir = FLAGS_source_dir + "/img_depth/";
-  string pred_depth_dir = FLAGS_source_dir + "/img_left/";
+  string pred_depth_dir = FLAGS_source_dir + "/" 
+                         + FLAGS_pred_depth_folder + "/";
   string left_img_dir = FLAGS_source_dir + "/img_left/";
  
   // Read the prefix of all avaiable datapoints
   vector<int> filename_prefixes;
   GetFileNamePrefixes(gt_depth_dir,
                       &filename_prefixes);
+  std::sort(filename_prefixes.begin(), filename_prefixes.end());
   
   Dataset dataset(kPatchSize,
                   FLAGS_session_num,
@@ -186,12 +199,12 @@ int main(int argc, char **argv) {
                   kObstacleRatioThresh,
                   kDistanceErrThresh,
                   kRelativeDistanceErrThresh,
-                  kMaxRange);
+                  FLAGS_max_range);
 
   vector<Point> query_points = GenerateQueryPoints(kImageSize,
                                                    kPatchSize,
                                                    kPatchStride,
-                                                   kMarginWidth);
+                                                   FLAGS_margin_width);
 
   dataset.LoadQueryPoints(query_points);
   
@@ -202,9 +215,16 @@ int main(int argc, char **argv) {
     ss << setfill('0') << setw(10) << i;
     string prefix = ss.str();
     string gt_depth_path = gt_depth_dir + prefix + ".pfm";
-    string pred_depth_path = pred_depth_dir + prefix + "_disp.npy";
     string left_img_path = left_img_dir + prefix + ".png";
-
+    string pred_depth_path;
+    if (FLAGS_pred_depth_fmt == "npy") {
+      pred_depth_path = pred_depth_dir + prefix + "_disp.npy";
+    } else if (FLAGS_pred_depth_fmt == "pfm") {
+      pred_depth_path = pred_depth_dir + prefix + ".pfm";
+    } else {
+      LOG(FATAL) << "Unknown predicted depth image format " 
+                 << FLAGS_pred_depth_fmt;
+    }
     
     // Read the left cam image
     Mat left_img = cv::imread(left_img_path,CV_LOAD_IMAGE_UNCHANGED);
@@ -222,12 +242,27 @@ int main(int argc, char **argv) {
     
 
     // Read the predicted depth image
-    cnpy::NpyArray arr = cnpy::npy_load(pred_depth_path);
-    float* loaded_data = arr.data<float>();
-    cv::Mat depth_img_pred = cv::Mat(arr.shape[0],
-                                     arr.shape[1],
-                                     CV_32F,
-                                     loaded_data);
+    cv::Mat depth_img_pred;
+    if (FLAGS_pred_depth_fmt == "npy") {
+      cnpy::NpyArray arr = cnpy::npy_load(pred_depth_path);
+      float* loaded_data = arr.data<float>();
+      depth_img_pred = cv::Mat(arr.shape[0],
+                                      arr.shape[1],
+                                      CV_32F,
+                                      loaded_data);
+    } else if (FLAGS_pred_depth_fmt == "pfm") {
+      PFM pfm_rw_p;
+      float * pred_depth_data = 
+                    pfm_rw_p.read_pfm<float>(pred_depth_path);
+      depth_img_pred = cv::Mat(pfm_rw_p.getHeight(), 
+                                  pfm_rw_p.getWidth(), 
+                                  CV_32F, 
+                                  pred_depth_data);
+      // cv::flip(depth_img_pred, depth_img_pred, 0);
+    } else {
+      LOG(FATAL) << "Unknown predicted depth image format " 
+                 << FLAGS_pred_depth_fmt;
+    }
     
 //     cout << "npy: " << arr.shape[0] << ", " << arr.shape[1] << ", "
 //                     << arr.shape[2] << endl;
@@ -258,7 +293,7 @@ int main(int argc, char **argv) {
                       prefix);
     dataset.SaveImages(left_img);
     
-    if (kVisualization) {
+    if (FLAGS_visualization) {
       sensor_msgs::PointCloud2 pointcloud2;
       if (depth_img_converter.GeneratePointcloud(depth_img_gt,
                                                 0,
@@ -268,7 +303,7 @@ int main(int argc, char **argv) {
         sensor_msgs::PointCloud2 pointcloud2_filt =
             depth_img_converter.FilterPointCloudByDistance(pointcloud2,
                                                           0,
-                                                          kMaxRange);
+                                                          FLAGS_max_range);
         point_cloud_publisher_gt_filt_dist.publish(pointcloud2_filt);
       }
       
@@ -298,7 +333,7 @@ int main(int argc, char **argv) {
 //     cv::convertScaleAbs(depth_img_gt, adjMap, 255.0 / max);
 //     cv::imshow("window", adjMap);
 
-    if (kVisualization) {
+    if (FLAGS_visualization && FLAGS_debug) {
       count++;
       cout << "img num: " << i << endl;
       cv::imshow("window", left_img);

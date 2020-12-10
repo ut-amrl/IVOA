@@ -166,11 +166,20 @@ bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
       //  map reference frame. This is only accurate for flat maps. For
       //  a more general solution, you can consider the terrain roughness.
       
-      // TODO: For points with z < -min_height, project them to the ground
-      // plane along the line to camera center. (This is to handle hole
-      // locations more accurately)
       if (fabs(pt_map(2) - FLAGS_ground_plane_height) >= height_min 
           && (pt_map(2) - FLAGS_ground_plane_height) <= height_max) {
+
+      // For points with z < -min_height, project them to the ground
+      // plane along the line to camera center. (This is to handle hole
+      // locations more accurately)
+        if ((pt_map(2) - FLAGS_ground_plane_height) < -height_min) {
+          Eigen::Vector4f pt_base_projected;
+          if (IntersectProjectionWithGroundPlane(pt_base, &pt_base_projected)) {
+            pt_base = pt_base_projected;
+            pt_map = T_base2map * pt_base;
+          }
+        }
+
         float angle = atan2(pt_base(1), pt_base(0));
         int index = 0;
         if(!CalculateLaserIndex(angle,
@@ -193,6 +202,7 @@ bool Depth2Pointcloud::GenerateProjectedPtCloud(const cv::Mat &depth_img,
                                                         pt_cam(2));
         }
       }
+
     }
   }
 
@@ -396,6 +406,24 @@ geometry_msgs::Point32 Depth2Pointcloud::Calculate3DCoord(
   point.z = depth;
 
   return point;
+}
+
+bool Depth2Pointcloud::IntersectProjectionWithGroundPlane(
+                const Eigen::Vector4f& pt_base,
+                Eigen::Vector4f* pt_base_projected) {
+  CHECK_EQ(calibration_is_loaded_, true);
+  if (pt_base(2) > 0) {
+    // If the pt_base is above the ground plane, then there will
+    // be no intersection with the ground plane
+    return false;
+  }
+
+  Eigen::Vector4f cam_pose_base = T_cam2base_.topRightCorner(4,1);
+  *pt_base_projected = cam_pose_base + (pt_base - cam_pose_base) 
+                       * (cam_pose_base(2)/ (cam_pose_base(2) - pt_base(2)));
+  pt_base_projected->coeffRef(3) = 1.0;
+                        
+  return true;
 }
 
 bool Depth2Pointcloud::CalculateLaserIndex(float angle_rad,
