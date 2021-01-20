@@ -83,7 +83,7 @@ def main():
     img = img.reshape((1, 3, img.shape[1], img.shape[2]))
   else:
     #TODO: update width and height values
-    img = torch.rand(1, 3, 600, 960)
+    img = torch.rand(1, 3, 224, 224)
   # ***********************
 
   # Use torch.jit.trace to generate a torch.jit.ScriptModule via tracing.

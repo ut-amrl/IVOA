@@ -303,7 +303,7 @@ if __name__=="__main__":
     bagfile_list_test = [0]
     
     # Overwrite the above values if they are set as inputs
-    if args.workers_num:
+    if args.workers_num is not None:
         NUM_WORKERS = args.workers_num
     if args.bagfile_id:
         bagfile_list_test = [args.bagfile_id]

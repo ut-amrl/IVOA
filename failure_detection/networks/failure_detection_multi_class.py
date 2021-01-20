@@ -31,8 +31,12 @@ import argparse, os
 #                      means estimating that there exists no obstacles.
 class FailureDetectionMultiClassNet(nn.Module):
     
-    def __init__(self, base_model="alexnet", lock_feature_ext=True):
+    def __init__(self, 
+                base_model="alexnet", 
+                input_size=(224, 224), 
+                lock_feature_ext=True):
         super(FailureDetectionMultiClassNet, self).__init__()
+        self.input_size = input_size
         
         supported_models = ["alexnet", "resnet152", "inception_v3"]
         if not(base_model in supported_models):
@@ -110,8 +114,12 @@ class FailureDetectionMultiClassNet(nn.Module):
         
         self.net = model
         
-    def forward(self, input):
-        return self.net(input)
+    def forward(self, input):                            
+        return self.net(nn.functional.interpolate(
+                                input, 
+                                size= self.input_size,
+                                mode='bilinear', 
+                                align_corners=False))
     
 if __name__=="__main__":
     net = FailureDetectionMultiClassNet(base_model="alexnet")
