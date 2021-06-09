@@ -113,7 +113,7 @@ if __name__=="__main__":
     parser.add_argument('--fn_sample_weight_coeff', default=None, 
                         help=('Multiplies by the sampling weight for the false'
                               ' negative class. Use for outdoor data.'), 
-                        type=float, required=True)
+                        type=float, required=False)
     parser.add_argument('--train_set', default=None, 
                         help="Training set name",
                         required=True)
@@ -143,7 +143,7 @@ if __name__=="__main__":
     USE_MULTI_GPU = True
     LOAD_MULTI_GPU_MODEL = True
     DATASET_IMAGE_CHANNEL = 3 # number of channels of the dataset images
-    LOAD_MODEL_WEIGHTS = True
+    LOAD_MODEL_WEIGHTS = False
 
     MODEL_LOAD_DIR =(
                   "/data/CAML/IVOA_CRA/models/snapshot/"
@@ -151,7 +151,7 @@ if __name__=="__main__":
    
   
     EPOCH_NUM = 30
-    SNAPSHOT_FREQ = 1 # take a snapshot once every 2 epochs
+    SNAPSHOT_FREQ = 2 # take a snapshot once every 2 epochs
     #BATCH_SIZE = 400 # 
     #NUM_WORKERS = 12 # Allocate 4 GPUs and 6 Cpus
     #NUM_WORKERS = 6 # Allocate 4 GPUs and 6 Cpus
@@ -160,15 +160,20 @@ if __name__=="__main__":
     #NUM_WORKERS = 24 # Allocate 8 GPUs and 12 Cpus
     #NUM_WORKERS = 2 # Allocate 8 GPUs and 12 Cpus
 
-    BATCH_SIZE = 4096 #
-    NUM_WORKERS = 16 #
+    # BATCH_SIZE = 4096 #
+    # NUM_WORKERS = 16 #
     
+    BATCH_SIZE = 400 #
+    NUM_WORKERS = 8 #
+
     train_set_dict = {
-      "train_1":[10, 11, 12, 13, 14, 15, 16]
+      "train_1":[1001, 1004],
+      "train_1_cpip_tr0_v1":[1000, 1001, 1002, 1003, 1004, 1005, 1006]
       }
       
     valid_set_dict = {
-      "valid_1":[6, 7, 8, 9]
+      "valid_1":[1003],
+      "valid_1_cpip_tr0_v1":[1007, 1008]
     }
    
     

@@ -70,6 +70,8 @@ DEFINE_string(pred_depth_folder, "img_left",
 DEFINE_double(margin_width, 5, "Margin around the edge of the images to throw "
 " out during evaluation. Value is interpreted as the percentage of the image"
 " width");
+DEFINE_double(patch_size, 50, "Size of image patches to be labeled for "
+              "training of IVOA.");
 DECLARE_bool(help);
 DECLARE_bool(helpshort);
 
@@ -83,9 +85,9 @@ DEFINE_bool(debug, false, "Whether or not run with debugging visualizations and 
 
 
 // Parameters
-const float kPositiveHeightObsThresh = 0.5; // meters
-const float kNegativeHeightObsThresh = 0.5; // meters
-const float kPatchSize = 50;
+const float kPositiveHeightObsThresh = 0.3; // meters
+const float kNegativeHeightObsThresh = 0.3; // meters
+// const float kPatchSize = 50;
 const float kPatchStride = 30;
 const double kObstacleRatioThresh = 0.05;
 
@@ -175,7 +177,8 @@ int main(int argc, char **argv) {
       nh.advertise<sensor_msgs::PointCloud2>(
           "/ivoa/pred_pointcloud_filtered_by_height", 1);
   
-  
+  std::cout << "Processing data on patches of size " << FLAGS_patch_size << std::endl;
+
   // Using only one instance of Depth2Pointcloud since the depth and left RGB
   // camera share the same extrinsics and intrinsics in our AirSim setup 
   Depth2Pointcloud depth_img_converter;
@@ -193,7 +196,7 @@ int main(int argc, char **argv) {
                       &filename_prefixes);
   std::sort(filename_prefixes.begin(), filename_prefixes.end());
   
-  Dataset dataset(kPatchSize,
+  Dataset dataset(FLAGS_patch_size,
                   FLAGS_session_num,
                   FLAGS_output_dataset_dir,
                   kObstacleRatioThresh,
@@ -202,7 +205,7 @@ int main(int argc, char **argv) {
                   FLAGS_max_range);
 
   vector<Point> query_points = GenerateQueryPoints(kImageSize,
-                                                   kPatchSize,
+                                                   FLAGS_patch_size,
                                                    kPatchStride,
                                                    FLAGS_margin_width);
 
