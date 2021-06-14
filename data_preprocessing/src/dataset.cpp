@@ -36,14 +36,16 @@ Dataset::Dataset(float patch_size,
                  double obstacle_ratio_thresh,
                  float distance_err_thresh,
                  float rel_distance_err_thresh,
-                 float max_range):
+                 float max_range,
+                 float min_range):
         patch_size_(patch_size),
         session_num_(session_num),
         dataset_dir_(dataset_dir),
         obstacle_ratio_thresh_(obstacle_ratio_thresh),
         distance_err_thresh_ (distance_err_thresh),
         rel_distance_err_thresh_(rel_distance_err_thresh),
-        max_range_(max_range){
+        max_range_(max_range),
+        min_range_(min_range){
   std::stringstream ss;
   ss << std::setfill('0') << std::setw(5) << session_num_;
   session_name_ = ss.str(); 
@@ -271,12 +273,18 @@ void Dataset::AppendToJsonImPatchNames() {
 // Returns false if the patch is not valid (out of bounds)
 bool Dataset::LabelPatch(const cv::Mat& obstacle_img,
                          const cv::Mat &obstacle_dist,
+                         const cv::Mat &in_range_mask,
                          const cv::Point& patch_coord, 
                          const float& patch_size, 
                          const float& obstacle_ratio_thresh,
                          bool *label,
                          float *patch_obs_dist,
+                         bool *insufficient_info,
                          float max_range) {
+  // The minimum ratio of available pixel readings to the total number of pixels
+  // in an image patch in order to consider existence of enough information 
+  const double kMinPatchInfoRatio = 0.0;
+  *insufficient_info = false;
   cv::Size patch_size2d(static_cast<float>(patch_size_), 
                       static_cast<float>(patch_size_)); 
     
@@ -294,18 +302,36 @@ bool Dataset::LabelPatch(const cv::Mat& obstacle_img,
                 patch_size);
   cv::Mat patch = obstacle_img(patch_def);
   cv::Mat patch_dist = obstacle_dist(patch_def);
-  double sum = cv::sum(patch)[0];
+  cv::Mat patch_in_range_mask = in_range_mask(patch_def);
+
+  // Prune out instances of obstacles in the obstacle image where the pixel
+  // reading is not in range (it is smaller than min_range).
+  cv::Mat obstacle_mask;
+  cv::bitwise_and(patch, patch_in_range_mask, obstacle_mask);
+
+  double sum_in_range_pixels = cv::sum(patch_in_range_mask)[0];
+  double in_range_ratio =
+      sum_in_range_pixels / static_cast<double>(patch_size_ * patch_size_);
+
+  double sum = cv::sum(obstacle_mask)[0];
   double obs_ratio = sum / static_cast<double>(patch_size_ * patch_size_);
-  
-  
+
+
+
   if (obs_ratio > obstacle_ratio_thresh) {
     *label = true;
   } else {
     *label = false;
   }
+
+  if (in_range_ratio > kMinPatchInfoRatio) {
+    *insufficient_info = false;
+  } else {
+    *insufficient_info = true;
+  }
   
   // Get the minimum distance obstacle in the given image patch
-  *patch_obs_dist = GetMinValueInMat(patch_dist, patch);
+  *patch_obs_dist = GetMinValueInMat(patch_dist, obstacle_mask);
   
  
   // If there is a required max range, the patch will be flagged as invalid
@@ -313,13 +339,12 @@ bool Dataset::LabelPatch(const cv::Mat& obstacle_img,
   // being an obstacle or not) is farther than max_range or if the patch is 
   // labeled as an obstacle, it will be flagged as invalid when 
   // dist_to_obstacle is larger than max_range
-  if (max_range >= 0) {
+  if (max_range >= 0 ) {
     // The minimum distance to any 3D point associated with the pixels in the 
     // patch (the point does not need to be an obstacle)
     float min_dist = GetMinValueInMat(patch_dist, 
                             cv::Mat::ones(patch_size, patch_size,CV_8U));
-    if (min_dist > max_range || 
-        (*label && *patch_obs_dist > max_range)) {
+    if (min_dist > max_range || (*label && *patch_obs_dist > max_range)) {
       return false;
     }
   }
@@ -337,18 +362,48 @@ void Dataset::ExtractPatchLabels(const cv::Mat& obstacle_img,
   obs_existence->clear();
   obs_distance->clear();
   valid_pts->clear();
+
+  // Zero valued pixels in this mask correspond to missing depth readings at
+  // those pixels
+  cv::Mat in_range_mask;
+  cv::threshold(obstacle_dist, in_range_mask, min_range_, 1, cv::THRESH_BINARY);
+  in_range_mask.convertTo(in_range_mask, obstacle_img.type());
+  if ((max_range > 0)) {
+    // std::cout << "in_range_mask.size() " << in_range_mask.size() <<
+    // std::endl; std::cout << "in_range_mask.type() " << in_range_mask.type()
+    // << std::endl;
+
+    // std::cout << "after" << std::endl;
+    // std::cout << "in_range_mask.size() " << in_range_mask.size() <<
+    // std::endl; std::cout << "in_range_mask.type() " << in_range_mask.type()
+    // << std::endl;
+
+    // TODO: remove this debugging
+    cv::Mat mask_vis;
+    cv::convertScaleAbs(in_range_mask, mask_vis, 255);
+    cv::imshow("in_range_mask", mask_vis);
+
+    cv::Mat obstacle_vis;
+    cv::convertScaleAbs(obstacle_img, obstacle_vis, 255);
+    cv::imshow("obstacle img", obstacle_vis);
+  }
+
   for (size_t i = 0; i < query_points_.size(); i++) {
     bool label;
+    bool insufficient_info;
     // The minimum distance to any obstacles in the image patch
     float patch_obs_dist;
     bool valid = LabelPatch(obstacle_img,
                             obstacle_dist,
+                            in_range_mask,
                             query_points_[i],
                             patch_size_,
                             obstacle_ratio_thresh_,
                             &label,
                             &patch_obs_dist,
+                            &insufficient_info,
                             max_range);
+    valid = valid && !insufficient_info;
     obs_existence->push_back(label);
     obs_distance->push_back(patch_obs_dist);
     valid_pts->push_back(valid);
@@ -446,9 +501,9 @@ cv::Mat Dataset::AnnotateImage(const cv::Mat &image) {
 }
 
 cv::Mat Dataset::AnnotateImageComprehensive(const cv::Mat &image) {
-  const int radius_label = 10;
-  const int radius_gt = 7;
-  const int radius_pred = 4;
+  const int radius_label = static_cast<int>(10.0 * image.size().width / 1124.0);
+  const int radius_gt = static_cast<int>(7.0 * image.size().width / 1124.0);
+  const int radius_pred = static_cast<int>(4.0 * image.size().width / 1124.0);
   
   cv::Scalar green = cv::Scalar(0, 255 , 0);
   cv::Scalar red = cv::Scalar(0, 0 , 255);
@@ -497,24 +552,26 @@ cv::Mat Dataset::AnnotateImageComprehensive(const cv::Mat &image) {
                radius_label, 
                label_color, 
                -1, 8, 0);
-    cv::circle(annotated_img, patch_coord_[i], radius_gt, gt_color, -1, 8, 0);
-    cv::circle(annotated_img, 
-               patch_coord_[i], 
-               radius_pred, 
-               pred_color, 
-               -1, 8, 0);
+    // cv::circle(annotated_img, patch_coord_[i], radius_gt, gt_color, -1, 8, 0);
+    // cv::circle(annotated_img, 
+    //            patch_coord_[i], 
+    //            radius_pred, 
+    //            pred_color, 
+    //            -1, 8, 0);
    
   }
   
   // Legend
-  cv::Mat roi = annotated_img(cv::Rect(0, 550, 200, 50));
+  // cv::Mat roi = annotated_img(cv::Rect(0, 550, 200, 50));
+  cv::Mat roi = annotated_img(
+      cv::Rect(0, image.size().height / 2, image.size().width / 5, 50));
   cv::Mat color(roi.size(), CV_8UC4, cv::Scalar(125, 125, 125,255)); 
   double alpha = 0.7;
   cv::addWeighted(color, alpha, roi, 1.0 - alpha , 0.0, roi); 
   
   int baseline = 0;
   double font_scale = 0.8;
-  float y_offset = 550 + 5;
+  float y_offset = image.size().height / 2 + 5;
   float x_offset = 50;
   float x_start = 20;
   

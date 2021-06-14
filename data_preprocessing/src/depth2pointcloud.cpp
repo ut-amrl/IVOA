@@ -343,7 +343,8 @@ cv::Mat Depth2Pointcloud::GenerateObstacleImage(const cv::Mat &depth_img,
                                           + pt_base(1) * pt_base(1));
       } else {
         obstacle_img.at<uint8_t>(y, x) = 0;
-        obstacle_dist.at<float>(y,x) = -1;
+        obstacle_dist.at<float>(y,x) = sqrt(pt_base(0) * pt_base(0) 
+                                          + pt_base(1) * pt_base(1));
       }
     }
   }

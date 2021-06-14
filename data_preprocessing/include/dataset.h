@@ -57,7 +57,8 @@ public:
           double obstacle_ratio_thresh,
           float distance_err_thresh,
           float rel_distance_err_thresh,
-          float max_range);
+          float max_range,
+          float min_range);
   ~Dataset() = default;
   
   enum PatchLabel {
@@ -99,11 +100,13 @@ private:
   // be labeled as obstacle
   bool LabelPatch(const cv::Mat &obstacle_img,
                   const cv::Mat &obstacle_dist,
+                  const cv::Mat &in_range_mask,
                   const cv::Point &patch_coord,
                   const float &patch_size,
                   const float &obstacle_ratio_thresh,
                   bool *label,
                   float *patch_obs_dist,
+                  bool *insufficient_info,
                   float max_range = -1);
   
   // Extracts patches and labels them as obstacle or traversable for a given
@@ -163,6 +166,11 @@ private:
   // used for training. A negative value implies that the max_range
   // constraint will not be enforced
   float max_range_;
+
+  // Depth readings smaller than min_range will be ignored. Values smaller than 
+  // min_range_ in the reference depth image indicates GT depth information 
+  // being unavailable for those pixels.
+  float min_range_;
   
   std::string session_id_;
   std::vector<cv::Point> query_points_;

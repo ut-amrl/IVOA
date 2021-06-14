@@ -72,6 +72,31 @@ DEFINE_double(margin_width, 5, "Margin around the edge of the images to throw "
 " width");
 DEFINE_double(patch_size, 50, "Size of image patches to be labeled for "
               "training of IVOA.");
+DEFINE_double(
+    positive_height_obs_thresh,
+    0.3,
+    "Minimum height of an obstacle in the positive direction of z axis.");
+DEFINE_double(negative_height_obs_thresh,
+              0.3,
+              "Minimum height of an obstacle in the negative direction of the "
+              "z axis (minimum depth of a hole in the ground).");
+DEFINE_double(image_width, 960, "Input image width.");
+DEFINE_double(image_height, 600, "Input image height.");
+
+// If the predicted distance to obstacle is off from the ground truth by
+// more than max(FLAGS_distance_err_thresh, kRelativeErrThresh * TrueDistance), it 
+// will be labeled as either FP (if pred_dist < gt_dist) or FN (if pred_dist > 
+// gt_dist)
+DEFINE_double(distance_err_thresh,
+              1.0,
+              "Absolute distance error threshold for a prediction to be "
+              "considered erroneous (meters).");
+DEFINE_double(relative_distance_err_thresh,
+              0.1,
+              "Relative distance error threshold for a prediction to be "
+              "considered erroneous.");
+
+
 DECLARE_bool(help);
 DECLARE_bool(helpshort);
 
@@ -80,25 +105,18 @@ DECLARE_bool(helpshort);
 // max_range constraint will not be enforced
 DEFINE_double(max_range, 50.0, "Max range to consider for depth prediction evaluation");
 
+// Depth readings smaller than min_range will be ignored. Values smaller than 
+// min_range_ in the reference depth image indicates GT depth information 
+// being unavailable for those pixels.
+DEFINE_double(min_range, 0.01, "Min range to consider for depth prediction evaluation");
+
 DEFINE_bool(visualization, false, "Whether or not to publish visualization information while executing.");
 DEFINE_bool(debug, false, "Whether or not run with debugging visualizations and print statements.");
 
 
 // Parameters
-const float kPositiveHeightObsThresh = 0.3; // meters
-const float kNegativeHeightObsThresh = 0.3; // meters
-// const float kPatchSize = 50;
 const float kPatchStride = 30;
 const double kObstacleRatioThresh = 0.05;
-
-// If the predicted distance to obstacle is off from the ground truth by
-// more than max(kDistanceErrThresh, kRelativeErrThresh * TrueDistance), it 
-// will be labeled as either FP (if pred_dist < gt_dist) or FN (if pred_dist > 
-// gt_dist)
-const float kDistanceErrThresh = 1.0; // meters
-const float kRelativeDistanceErrThresh = 0.1;
-
-const cv::Size kImageSize(960, 600);
 
 // Checks if all required command line arguments have been set
 void CheckCommandLineArgs(char** argv) {
@@ -200,11 +218,13 @@ int main(int argc, char **argv) {
                   FLAGS_session_num,
                   FLAGS_output_dataset_dir,
                   kObstacleRatioThresh,
-                  kDistanceErrThresh,
-                  kRelativeDistanceErrThresh,
-                  FLAGS_max_range);
+                  FLAGS_distance_err_thresh,
+                  FLAGS_relative_distance_err_thresh,
+                  FLAGS_max_range,
+                  FLAGS_min_range);
 
-  vector<Point> query_points = GenerateQueryPoints(kImageSize,
+  cv::Size image_size(FLAGS_image_width, FLAGS_image_height);
+  vector<Point> query_points = GenerateQueryPoints(image_size,
                                                    FLAGS_patch_size,
                                                    kPatchStride,
                                                    FLAGS_margin_width);
@@ -228,10 +248,16 @@ int main(int argc, char **argv) {
       LOG(FATAL) << "Unknown predicted depth image format " 
                  << FLAGS_pred_depth_fmt;
     }
-    
+
+    // TODO: Convert to color only if the image is
+    // not already in color
+
     // Read the left cam image
     Mat left_img = cv::imread(left_img_path,CV_LOAD_IMAGE_UNCHANGED);
-    
+    if (left_img.channels() == 1) {
+      cvtColor(left_img, left_img, cv::COLOR_GRAY2RGBA);
+    }
+
 
     // Read the Ground truth depth image
     PFM pfm_rw;
@@ -241,8 +267,11 @@ int main(int argc, char **argv) {
                                 pfm_rw.getWidth(), 
                                 CV_32F, 
                                 depth_data);
-    cv::flip(depth_img_gt, depth_img_gt, 0);
+    // TODO: Make flipping the depth images an option. This was required
+    // for AirSim data.
+    // cv::flip(depth_img_gt, depth_img_gt, 0);
     
+
 
     // Read the predicted depth image
     cv::Mat depth_img_pred;
@@ -266,7 +295,7 @@ int main(int argc, char **argv) {
       LOG(FATAL) << "Unknown predicted depth image format " 
                  << FLAGS_pred_depth_fmt;
     }
-    
+
 //     cout << "npy: " << arr.shape[0] << ", " << arr.shape[1] << ", "
 //                     << arr.shape[2] << endl;
 //     cout << "cv img: " << depth_img_pred.size() << endl;
@@ -279,14 +308,14 @@ int main(int argc, char **argv) {
     cv::Mat obstacle_dist_gt;
     cv::Mat obstacle_img_gt = depth_img_converter.GenerateObstacleImage(
                                               depth_img_gt,
-                                              kPositiveHeightObsThresh,
-                                              kNegativeHeightObsThresh,
+                                              FLAGS_positive_height_obs_thresh,
+                                              FLAGS_negative_height_obs_thresh,
                                               &obstacle_dist_gt);
     cv::Mat obstacle_dist_pred;
     cv::Mat obstacle_img_pred = depth_img_converter.GenerateObstacleImage(
                                               depth_img_pred,
-                                              kPositiveHeightObsThresh,
-                                              kNegativeHeightObsThresh,
+                                              FLAGS_positive_height_obs_thresh,
+                                              FLAGS_negative_height_obs_thresh,
                                               &obstacle_dist_pred);
 
     dataset.LabelData(obstacle_img_gt,
@@ -295,7 +324,7 @@ int main(int argc, char **argv) {
                       obstacle_dist_pred,
                       prefix);
     dataset.SaveImages(left_img);
-    
+
     if (FLAGS_visualization) {
       sensor_msgs::PointCloud2 pointcloud2;
       if (depth_img_converter.GeneratePointcloud(depth_img_gt,
@@ -317,7 +346,7 @@ int main(int argc, char **argv) {
       
         sensor_msgs::PointCloud2 pointcloud2_filt =
               depth_img_converter.FilterPointCloudByHeight(pointcloud2,
-                                                  kPositiveHeightObsThresh,
+                                          FLAGS_positive_height_obs_thresh,
                                           std::numeric_limits<float>::max());
         point_cloud_publisher_pred_filt_height.publish(pointcloud2_filt);
       }
@@ -335,6 +364,22 @@ int main(int argc, char **argv) {
 //     cv::Mat adjMap;
 //     cv::convertScaleAbs(depth_img_gt, adjMap, 255.0 / max);
 //     cv::imshow("window", adjMap);
+
+    // TODO: Remove these debugging visualizations
+    // cv::Mat in_range_mask;
+    // cv::threshold(depth_img_gt, in_range_mask, 0.01, 1, cv::THRESH_BINARY);
+    // in_range_mask.convertTo(in_range_mask, CV_8U);
+    // cv::Mat mask_vis;
+    // cv::convertScaleAbs(in_range_mask, mask_vis, 255);
+    // cv::imshow("GT Depth in range over depth", mask_vis);
+
+    // cv::Mat in_range_mask_pred;
+    // cv::threshold(depth_img_pred, in_range_mask_pred, 0.01, 1, cv::THRESH_BINARY);
+    // in_range_mask_pred.convertTo(in_range_mask_pred, CV_8U);
+    // cv::Mat mask_vis_pred;
+    // cv::convertScaleAbs(in_range_mask_pred, mask_vis_pred, 255);
+    // cv::imshow("Predicted Depth in range over depth", mask_vis_pred);
+
 
     if (FLAGS_visualization && FLAGS_debug) {
       count++;

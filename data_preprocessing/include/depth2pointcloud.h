@@ -119,7 +119,7 @@ class Depth2Pointcloud{
                            float angle_increment,
                            int *index);
 
-  float min_range_ = 0.0; // m
+  float min_range_ = 0.05; // m
   float max_range_ = 1e10; // m
 
 
