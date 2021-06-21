@@ -283,7 +283,7 @@ bool Dataset::LabelPatch(const cv::Mat& obstacle_img,
                          float max_range) {
   // The minimum ratio of available pixel readings to the total number of pixels
   // in an image patch in order to consider existence of enough information 
-  const double kMinPatchInfoRatio = 0.0;
+  const double kMinPatchInfoRatio = 0.1;
   *insufficient_info = false;
   cv::Size patch_size2d(static_cast<float>(patch_size_), 
                       static_cast<float>(patch_size_)); 
@@ -342,8 +342,11 @@ bool Dataset::LabelPatch(const cv::Mat& obstacle_img,
   if (max_range >= 0 ) {
     // The minimum distance to any 3D point associated with the pixels in the 
     // patch (the point does not need to be an obstacle)
+    // float min_dist = GetMinValueInMat(patch_dist, 
+    //                         cv::Mat::ones(patch_size, patch_size,CV_8U));
+
     float min_dist = GetMinValueInMat(patch_dist, 
-                            cv::Mat::ones(patch_size, patch_size,CV_8U));
+                            patch_in_range_mask);
     if (min_dist > max_range || (*label && *patch_obs_dist > max_range)) {
       return false;
     }
@@ -368,25 +371,6 @@ void Dataset::ExtractPatchLabels(const cv::Mat& obstacle_img,
   cv::Mat in_range_mask;
   cv::threshold(obstacle_dist, in_range_mask, min_range_, 1, cv::THRESH_BINARY);
   in_range_mask.convertTo(in_range_mask, obstacle_img.type());
-  if ((max_range > 0)) {
-    // std::cout << "in_range_mask.size() " << in_range_mask.size() <<
-    // std::endl; std::cout << "in_range_mask.type() " << in_range_mask.type()
-    // << std::endl;
-
-    // std::cout << "after" << std::endl;
-    // std::cout << "in_range_mask.size() " << in_range_mask.size() <<
-    // std::endl; std::cout << "in_range_mask.type() " << in_range_mask.type()
-    // << std::endl;
-
-    // TODO: remove this debugging
-    cv::Mat mask_vis;
-    cv::convertScaleAbs(in_range_mask, mask_vis, 255);
-    cv::imshow("in_range_mask", mask_vis);
-
-    cv::Mat obstacle_vis;
-    cv::convertScaleAbs(obstacle_img, obstacle_vis, 255);
-    cv::imshow("obstacle img", obstacle_vis);
-  }
 
   for (size_t i = 0; i < query_points_.size(); i++) {
     bool label;

@@ -141,8 +141,8 @@ public:
 
 
         if (this->is_little_big_endianness_swap()){
-          std::cout << "little-big endianness transformation is "
-                        "needed.\n";
+          // std::cout << "little-big endianness transformation is "
+          //               "needed.\n";
           // little-big endianness transformation is needed.
           union {
               T f;
@@ -230,7 +230,7 @@ public:
     }
 
     if (this->is_little_big_endianness_swap()) {
-        std::cout << "little-big endianness transformation is needed.\n";
+        // std::cout << "little-big endianness transformation is needed.\n";
         // little-big endianness transformation is needed.
         union {
             T f;

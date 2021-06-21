@@ -231,8 +231,14 @@ int main(int argc, char **argv) {
 
   dataset.LoadQueryPoints(query_points);
   
+  const bool kSkipFirstFrame = true;
   int count = 0;
   for (const int &i : filename_prefixes) {
+
+    if (kSkipFirstFrame && (count == 0) ) {
+      count++;
+      continue;
+    }
     
     stringstream ss;
     ss << setfill('0') << setw(10) << i;
