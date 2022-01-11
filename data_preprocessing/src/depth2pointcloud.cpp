@@ -334,23 +334,24 @@ cv::Mat Depth2Pointcloud::GenerateObstacleImage(const cv::Mat &depth_img,
       
       // Convert the 3d point to the base_link reference frame
       Eigen::Vector4f pt_base = T_cam2base_ * pt_cam;
-     
-       
-      if (pt_base(2) > fabs(positive_height_thresh) ||
-          pt_base(2) < -fabs(negative_height_thresh)) {
+
+      if (pt_base(2) >
+              (FLAGS_ground_plane_height + fabs(positive_height_thresh)) ||
+          pt_base(2) <
+              (FLAGS_ground_plane_height - fabs(negative_height_thresh))) {
         obstacle_img.at<uint8_t>(y, x) = 1;
-        obstacle_dist.at<float>(y,x) = sqrt(pt_base(0) * pt_base(0) 
-                                          + pt_base(1) * pt_base(1));
+        obstacle_dist.at<float>(y, x) =
+            sqrt(pt_base(0) * pt_base(0) + pt_base(1) * pt_base(1));
       } else {
         obstacle_img.at<uint8_t>(y, x) = 0;
-        obstacle_dist.at<float>(y,x) = sqrt(pt_base(0) * pt_base(0) 
-                                          + pt_base(1) * pt_base(1));
+        obstacle_dist.at<float>(y, x) =
+            sqrt(pt_base(0) * pt_base(0) + pt_base(1) * pt_base(1));
       }
     }
-  }
+    }
 
-  *obstacle_distance = obstacle_dist.clone();
-  return obstacle_img;
+    *obstacle_distance = obstacle_dist.clone();
+    return obstacle_img;
 }
 
 int Depth2Pointcloud::LoadCameraCalibration(

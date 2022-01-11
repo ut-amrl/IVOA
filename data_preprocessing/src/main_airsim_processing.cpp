@@ -121,6 +121,8 @@ DEFINE_bool(
 DEFINE_bool(
     debug, false,
     "Whether or not run with debugging visualizations and print statements.");
+DEFINE_bool(flip_depth_images, false,
+            "Whether or not to flip the depth images vertically. This is required for AirSim data.");
 
 // Parameters
 const float kPatchStride = 30;
@@ -269,9 +271,9 @@ int main(int argc, char **argv) {
     float *depth_data = pfm_rw.read_pfm<float>(gt_depth_path);
     cv::Mat depth_img_gt =
         cv::Mat(pfm_rw.getHeight(), pfm_rw.getWidth(), CV_32F, depth_data);
-    // TODO: Make flipping the depth images an option. This was required
-    // for AirSim data.
-    // cv::flip(depth_img_gt, depth_img_gt, 0);
+    if (FLAGS_flip_depth_images) {
+      cv::flip(depth_img_gt, depth_img_gt, 0);
+    }
 
     // Read the predicted depth image
     cv::Mat depth_img_pred;
@@ -284,7 +286,9 @@ int main(int argc, char **argv) {
       float *pred_depth_data = pfm_rw_p.read_pfm<float>(pred_depth_path);
       depth_img_pred = cv::Mat(pfm_rw_p.getHeight(), pfm_rw_p.getWidth(),
                                CV_32F, pred_depth_data);
-      // cv::flip(depth_img_pred, depth_img_pred, 0);
+      if (FLAGS_flip_depth_images) {
+        cv::flip(depth_img_pred, depth_img_pred, 0);
+      }
     } else {
       LOG(FATAL) << "Unknown predicted depth image format "
                  << FLAGS_pred_depth_fmt;
