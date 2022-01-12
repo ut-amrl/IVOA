@@ -58,7 +58,10 @@ public:
           float distance_err_thresh,
           float rel_distance_err_thresh,
           float max_range,
-          float min_range);
+          float min_range,
+          bool is_pixel_wise_mode,
+          float min_patch_info_ratio,
+          float min_err_pixel_ratio);
   ~Dataset() = default;
   
   enum PatchLabel {
@@ -74,6 +77,20 @@ public:
                  const cv::Mat& pred_obstacle_img,
                  const cv::Mat& pred_obstacle_dist,
                  const std::string& name_prefix);
+
+  // This function is used to label the data when NOT running in pixel-wise mode
+  bool LabelDataPatchWiseMode(const cv::Mat &gt_obstacle_img,
+                              const cv::Mat &gt_obstacle_dist,
+                              const cv::Mat &pred_obstacle_img,
+                              const cv::Mat &pred_obstacle_dist,
+                              const std::string &name_prefix);
+
+  // This function is used to label the data when running in pixel-wise mode  
+  bool LabelDataPixelWiseMode(const cv::Mat& gt_obstacle_img,
+                              const cv::Mat& gt_obstacle_dist,
+                              const cv::Mat& pred_obstacle_img,
+                              const cv::Mat& pred_obstacle_dist,
+                              const std::string& name_prefix);
   
   void SaveImages(const cv::Mat& left_im);
   
@@ -108,7 +125,23 @@ private:
                   float *patch_obs_dist,
                   bool *insufficient_info,
                   float max_range = -1);
-  
+
+  // Given pixel-wise depth error values for a patch, and the ground truth
+  // depth values, it computes if the patch has enough information to be
+  // included in the dataset. If it does, the patch will be labeled as either
+  // TP, TN, FP, or FN depending on the frequency of occurrence of each type of
+  // prediction outcome at the pixel level
+  bool LabelPatchPixelWise(const cv::Mat &patch_pred_obstacle_img,
+                           const cv::Mat &patch_gt_obstacle_img,
+                           const cv::Mat &patch_depth_err,
+                           const cv::Mat &patch_depth_err_relative,
+                           const cv::Mat &patch_in_range_mask,
+                           const float &patch_size,
+                           const float &obstacle_ratio_thresh,
+                           int *multi_class_label,
+                           bool *obstacle_existence_label,
+                           float max_range = -1);
+
   // Extracts patches and labels them as obstacle or traversable for a given
   // obstacle image
   void ExtractPatchLabels(const cv::Mat &obstacle_img,
@@ -117,7 +150,20 @@ private:
                           std::vector<float> *obs_distance,
                           std::vector<bool> *valid_pts,
                           float max_range = -1);
-  
+
+  // Given the ground truth and predicted depth images and the available query
+  // points, it extracts image patches and labels each of them as TP, TN, FP,
+  // and FN and verifies if the patch has enough information to be included in
+  // the dataset
+  void ExtractPixelWisePatchLabels(const cv::Mat &pred_obstacle_img,
+                                   const cv::Mat &pred_obstacle_dist,
+                                   const cv::Mat &gt_obstacle_img,
+                                   const cv::Mat &gt_obstacle_dist,
+                                   std::vector<bool> *obs_existence,
+                                   std::vector<int> *multi_class_labels,
+                                   std::vector<bool> *valid_pts,
+                                   float max_range = -1);
+
   // Labels the patch as either TP (0), TN (1), FP (2), and FN (3). This is 
   // done based on the obstacle/No obstacle labels extracted from ground truth
   // and predicted depth as well as the estimated distance to obstacle
@@ -139,9 +185,8 @@ private:
   // been labeled as obstacle by both the predicted depth and the gt depth but
   // the predicted distance to obstacle is wrong.
   cv::Mat AnnotateImageComprehensive(const cv::Mat &image);
-  
-          
-  
+    
+ 
   bool query_points_loaded_ = false;
   float patch_size_;
   long unsigned int img_count_ = 0;
@@ -171,7 +216,24 @@ private:
   // min_range_ in the reference depth image indicates GT depth information 
   // being unavailable for those pixels.
   float min_range_;
-  
+
+  // In this mode, labeling is done initially pixel-wise, i.e. each pixel will
+  // be labeled as either FP, FN, TP, or TN. Then patch labels are generated
+  // based on the pixel-wise labels. When NOT running in pixel-wise mode, the
+  // label of a patch is determined by the value of the error in the predicted
+  // depth of the closest obstacle present in the image patch.
+  bool is_pixel_wise_mode_;
+
+  // The minimum ratio of available pixel readings to the total number of pixels
+  // in an image patch in order to consider existence of enough information
+  float min_patch_info_ratio_ = 0.1;
+
+  // The minimum ratio of pixels with depth estimation error to the total number
+  // of pixels in an image patch in order to label the patch as an instance of
+  // depth error (either FP or FN). NOTE: This is only used when
+  // is_pixel_wise_mode_ is true
+  float min_err_pixel_ratio_ = 0.1;
+
   std::string session_id_;
   std::vector<cv::Point> query_points_;
   

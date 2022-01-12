@@ -28,8 +28,6 @@ using std::cout;
 using std::endl;
 using cv::Point;
 
-
-
 Dataset::Dataset(float patch_size,
                  int session_num,
                  std::string dataset_dir,
@@ -37,23 +35,29 @@ Dataset::Dataset(float patch_size,
                  float distance_err_thresh,
                  float rel_distance_err_thresh,
                  float max_range,
-                 float min_range):
-        patch_size_(patch_size),
-        session_num_(session_num),
-        dataset_dir_(dataset_dir),
-        obstacle_ratio_thresh_(obstacle_ratio_thresh),
-        distance_err_thresh_ (distance_err_thresh),
-        rel_distance_err_thresh_(rel_distance_err_thresh),
-        max_range_(max_range),
-        min_range_(min_range){
+                 float min_range,
+                 bool is_pixel_wise_mode,
+                 float min_patch_info_ratio,
+                 float min_err_pixel_ratio)
+    : patch_size_(patch_size),
+      session_num_(session_num),
+      dataset_dir_(dataset_dir),
+      obstacle_ratio_thresh_(obstacle_ratio_thresh),
+      distance_err_thresh_(distance_err_thresh),
+      rel_distance_err_thresh_(rel_distance_err_thresh),
+      max_range_(max_range),
+      min_range_(min_range),
+      is_pixel_wise_mode_(is_pixel_wise_mode),
+      min_patch_info_ratio_(min_patch_info_ratio),
+      min_err_pixel_ratio_(min_err_pixel_ratio) {
   std::stringstream ss;
   ss << std::setfill('0') << std::setw(5) << session_num_;
-  session_name_ = ss.str(); 
-  
+  session_name_ = ss.str();
+
   PrepareDirectories();
 }
 
-void Dataset::LoadQueryPoints(const std::vector<cv::Point>& query_points) {
+void Dataset::LoadQueryPoints(const std::vector<cv::Point> &query_points) {
   query_points_ = query_points;
   query_points_loaded_ = true;
 }
@@ -63,10 +67,30 @@ bool Dataset::LabelData(const cv::Mat& gt_obstacle_img,
                         const cv::Mat& pred_obstacle_img,
                         const cv::Mat& pred_obstacle_dist,
                         const std::string& name_prefix) {
+  if (is_pixel_wise_mode_) {
+    return LabelDataPixelWiseMode(gt_obstacle_img,
+                              gt_obstacle_dist,
+                              pred_obstacle_img,
+                              pred_obstacle_dist,
+                              name_prefix);
+  } else {
+    return LabelDataPatchWiseMode(gt_obstacle_img,
+                                  gt_obstacle_dist,
+                                  pred_obstacle_img,
+                                  pred_obstacle_dist,
+                                  name_prefix);
+  }
+}
+
+bool Dataset::LabelDataPatchWiseMode(const cv::Mat &gt_obstacle_img,
+                                     const cv::Mat &gt_obstacle_dist,
+                                     const cv::Mat &pred_obstacle_img,
+                                     const cv::Mat &pred_obstacle_dist,
+                                     const std::string &name_prefix) {
   if (!query_points_loaded_) {
     return false;
   }
- 
+
   ExtractPatchLabels(gt_obstacle_img,
                      gt_obstacle_dist,
                      &gt_labels_,
@@ -100,6 +124,54 @@ bool Dataset::LabelData(const cv::Mat& gt_obstacle_img,
   
   img_count_++;
   img_patches_count_+= valid_pts_count;
+  return true;
+}
+
+bool Dataset::LabelDataPixelWiseMode(const cv::Mat &gt_obstacle_img,
+                                     const cv::Mat &gt_obstacle_dist,
+                                     const cv::Mat &pred_obstacle_img,
+                                     const cv::Mat &pred_obstacle_dist,
+                                     const std::string &name_prefix) {
+  if (!query_points_loaded_) {
+    return false;
+  }
+
+  ExtractPixelWisePatchLabels(pred_obstacle_img,
+                              pred_obstacle_dist,
+                              gt_obstacle_img,
+                              gt_obstacle_dist,
+                              &pred_labels_,
+                              &multi_class_labels_,
+                              &pred_valid_pts_,
+                              max_range_);
+
+  // TODO: For now, we are filling gt_labels_, gt_obstacle_distance_,
+  // pred_obstacle_distance_ with dummy values as they are not relevant in
+  // pixel-wise mode. Maybe handle this better later. It should be noted that
+  // in the resultant generated dataset only multi_class_labels_ should be used
+  // as the mentioned variables are not calculated in pixel-wise mode.
+  gt_labels_ = pred_labels_;
+  gt_obstacle_distance_ = pred_obstacle_distance_ =
+      vector<float>(pred_labels_.size(), 0.0);
+
+  // Populate valid patches flags
+  int valid_pts_count = 0;
+  valid_pts_ = pred_valid_pts_;
+  gt_valid_pts_ = pred_valid_pts_;
+  for (size_t i = 0; i < valid_pts_.size(); i++) {
+    if (valid_pts_[i]) {
+      valid_pts_count++;
+    }
+  }
+
+  patch_coord_ = query_points_;
+
+  latest_img_name_prefix_ = name_prefix;
+
+  UpdateDataset();
+
+  img_count_++;
+  img_patches_count_ += valid_pts_count;
   return true;
 }
 
@@ -356,6 +428,95 @@ bool Dataset::LabelPatch(const cv::Mat& obstacle_img,
   return true;
 }
 
+bool Dataset::LabelPatchPixelWise(const cv::Mat &patch_pred_obstacle_img,
+                                  const cv::Mat &patch_gt_obstacle_img,
+                                  const cv::Mat &patch_depth_err,
+                                  const cv::Mat &patch_depth_err_relative,
+                                  const cv::Mat &patch_in_range_mask,
+                                  const float &patch_size,
+                                  const float &obstacle_ratio_thresh,
+                                  int *multi_class_label,
+                                  bool *obstacle_existence_label,
+                                  float max_range) {
+  // Prune out instances of obstacles in the obstacle image where the pixel
+  // reading is not in range (it is smaller than min_range).
+  cv::Mat in_range_gt_obstacle_mask;
+  cv::bitwise_and(
+      patch_gt_obstacle_img, patch_in_range_mask, in_range_gt_obstacle_mask);
+
+  double sum_in_range_pixels = cv::sum(patch_in_range_mask)[0];
+  double in_range_ratio =
+      sum_in_range_pixels / static_cast<double>(patch_size_ * patch_size_);
+
+  double sum = cv::sum(in_range_gt_obstacle_mask)[0];
+  double obs_ratio = sum / static_cast<double>(patch_size_ * patch_size_);
+
+  if (obs_ratio > obstacle_ratio_thresh) {
+    *obstacle_existence_label = true;
+  } else {
+    *obstacle_existence_label = false;
+  }
+
+  if (in_range_ratio < min_patch_info_ratio_) {
+    return false;
+  }
+
+  cv::Mat fp_mask =
+      cv::Mat::zeros(patch_size_, patch_size_, patch_gt_obstacle_img.type());
+  cv::Mat fn_mask =
+      cv::Mat::zeros(patch_size_, patch_size_, patch_gt_obstacle_img.type());
+  cv::Mat tp_mask =
+      cv::Mat::zeros(patch_size_, patch_size_, patch_gt_obstacle_img.type());
+  cv::Mat tn_mask =
+      cv::Mat::zeros(patch_size_, patch_size_, patch_gt_obstacle_img.type());
+
+  fp_mask = (patch_depth_err > distance_err_thresh_) &
+            (patch_depth_err_relative > rel_distance_err_thresh_) & patch_in_range_mask;
+
+  fn_mask = (patch_depth_err < -distance_err_thresh_) &
+            (patch_depth_err_relative < -rel_distance_err_thresh_) & patch_in_range_mask;
+
+  tp_mask = patch_in_range_mask &
+            patch_gt_obstacle_img &
+            (((patch_depth_err <= distance_err_thresh_) &
+              (patch_depth_err >= -distance_err_thresh_)) |
+             ((patch_depth_err_relative <= rel_distance_err_thresh_) &
+              (patch_depth_err_relative >= -rel_distance_err_thresh_)));
+
+  tn_mask = (~(tp_mask | fp_mask | fn_mask)) & patch_in_range_mask;
+
+  if (cv::sum(fp_mask | fn_mask)[0] >
+      (min_err_pixel_ratio_ * patch_size_ * patch_size_)) {
+    // Label as either FP or FN
+    if (cv::sum(fp_mask)[0] > cv::sum(fn_mask)[0]) {
+      *multi_class_label = FP;
+    } else {
+      *multi_class_label = FN;
+    }
+  } else {
+    // Label as TP or TN
+    if (cv::sum(tp_mask)[0] > cv::sum(tn_mask)[0]) {
+      *multi_class_label = TP;
+    } else {
+      if (cv::sum(tn_mask)[0] > 0) {
+        *multi_class_label = TN;
+      } else {
+        // If there are no pixels with correctly predicted depth, then
+        // kMinPixelErrorRatio threshold will be ignored the label will be
+        // selected based on the type of error with higher frequency
+        // Label as either FP or FN
+        if (cv::sum(fp_mask)[0] > cv::sum(fn_mask)[0]) {
+          *multi_class_label = FP;
+        } else {
+          *multi_class_label = FN;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
 void Dataset::ExtractPatchLabels(const cv::Mat& obstacle_img,
                                  const cv::Mat &obstacle_dist,
                                 std::vector<bool> *obs_existence,
@@ -391,6 +552,69 @@ void Dataset::ExtractPatchLabels(const cv::Mat& obstacle_img,
     obs_existence->push_back(label);
     obs_distance->push_back(patch_obs_dist);
     valid_pts->push_back(valid);
+  }
+}
+
+void Dataset::ExtractPixelWisePatchLabels(const cv::Mat &pred_obstacle_img,
+                                          const cv::Mat &pred_obstacle_dist,
+                                          const cv::Mat &gt_obstacle_img,
+                                          const cv::Mat &gt_obstacle_dist,
+                                          std::vector<bool> *obs_existence,
+                                          std::vector<int> *multi_class_labels,
+                                          std::vector<bool> *valid_pts,
+                                          float max_range) {
+  valid_pts->clear();
+  obs_existence->clear();
+  multi_class_labels->clear();
+
+  // Zero valued pixels in this mask correspond to missing depth readings at
+  // those pixels
+  cv::Mat in_range_mask, in_range_mask_min, in_range_mask_max;
+  cv::threshold(
+      gt_obstacle_dist, in_range_mask_min, min_range_, 1, cv::THRESH_BINARY);
+  cv::threshold(
+      gt_obstacle_dist, in_range_mask_max, max_range, 1, cv::THRESH_BINARY_INV);
+  cv::bitwise_and(in_range_mask_min, in_range_mask_max, in_range_mask);
+  in_range_mask.convertTo(in_range_mask, gt_obstacle_img.type());
+
+  cv::Size patch_size2d(static_cast<float>(patch_size_),
+                        static_cast<float>(patch_size_));
+
+  cv::Mat depth_err(gt_obstacle_dist.size(), gt_obstacle_dist.type());
+  cv::Mat depth_err_relative(gt_obstacle_dist.size(), gt_obstacle_dist.type());
+
+  depth_err = gt_obstacle_dist - pred_obstacle_dist;
+  depth_err_relative = depth_err / gt_obstacle_dist;
+
+  for (size_t i = 0; i < query_points_.size(); i++) {
+    bool obstacle_existence_label;
+    int multi_class_label;
+
+    if (!ValidatePatch(
+            gt_obstacle_img.size(), patch_size2d, query_points_[i])) {
+      valid_pts->push_back(false);
+      continue;
+    }
+
+    cv::Rect patch_def(query_points_[i].x - patch_size_ / 2.0,
+                       query_points_[i].y - patch_size_ / 2.0,
+                       patch_size_,
+                       patch_size_);
+
+    bool valid = LabelPatchPixelWise(pred_obstacle_img(patch_def),
+                                     gt_obstacle_img(patch_def),
+                                     depth_err(patch_def),
+                                     depth_err_relative(patch_def),
+                                     in_range_mask(patch_def),
+                                     patch_size_,
+                                     obstacle_ratio_thresh_,
+                                     &multi_class_label,
+                                     &obstacle_existence_label,
+                                     max_range);
+
+    valid_pts->push_back(valid);
+    obs_existence->push_back(obstacle_existence_label);
+    multi_class_labels->push_back(multi_class_label);
   }
 }
 
@@ -503,33 +727,18 @@ cv::Mat Dataset::AnnotateImageComprehensive(const cv::Mat &image) {
     cv::Scalar pred_color = (pred_labels_[i])? red : green;
     
     cv::Scalar label_color;
-    // Label the patch as either TP (green), TN (blue), FP (orange), and FN(red)
-    if ((gt_labels_[i] == pred_labels_[i]) && gt_labels_[i]) {
-      float obst_dist_err = gt_obstacle_distance_[i] - 
-                            pred_obstacle_distance_[i];
-      float rel_err_thresh = rel_distance_err_thresh_ * 
-                             gt_obstacle_distance_[i]; 
-      if (obst_dist_err > std::max(distance_err_thresh_, rel_err_thresh)) {
-        // False Positive
-        label_color = orange;
-      } else if (
-         obst_dist_err < -std::max(distance_err_thresh_, rel_err_thresh)) {
-        // Flase Negative
-        label_color = red;
-      } else {
-        // True Positive
-        label_color = green;
-      }
-    } else if ((gt_labels_[i] != pred_labels_[i]) && gt_labels_[i]) {
-      // False negative
+
+    if (multi_class_labels_[i] == FP) {
+      label_color = orange;
+    } else if (multi_class_labels_[i] == FN) {
       label_color = red;
-    } else if ((gt_labels_[i] == pred_labels_[i]) && !gt_labels_[i]) {
+    } else if (multi_class_labels_[i] == TP) {
+      label_color = green;
+    } else {
       // True negative
       label_color = blue;
-    } else {
-      // False positive
-      label_color = orange;
     }
+
     
     cv::circle(annotated_img, 
                patch_coord_[i], 

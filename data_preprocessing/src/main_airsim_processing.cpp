@@ -99,6 +99,15 @@ DEFINE_double(distance_err_thresh, 1.0,
 DEFINE_double(relative_distance_err_thresh, 0.1,
               "Relative distance error threshold for a prediction to be "
               "considered erroneous.");
+DEFINE_double(min_patch_info_ratio, 0.1,
+              "The minimum ratio of available pixel readings to the total" 
+              " number of pixels in an image patch in order to consider" 
+              " existence of enough information.");
+DEFINE_double(min_err_pixel_ratio, 0.1,
+              "The minimum ratio of pixels with depth estimation error to the" 
+              " total number of pixels in an image patch in order to label"
+              " the patch as an instance of depth error (either FP or FN)." 
+              " NOTE: This is only used when is_pixel_wise_mode_ is true");
 
 DECLARE_bool(help);
 DECLARE_bool(helpshort);
@@ -123,6 +132,8 @@ DEFINE_bool(
     "Whether or not run with debugging visualizations and print statements.");
 DEFINE_bool(flip_depth_images, false,
             "Whether or not to flip the depth images vertically. This is required for AirSim data.");
+DEFINE_bool(generate_labels_in_pixel_wise_mode, false,
+            "Whether or not to generate labels in pixel wise mode.");
 
 // Parameters
 const float kPatchStride = 30;
@@ -222,10 +233,17 @@ int main(int argc, char **argv) {
   GetFileNamePrefixes(pred_depth_dir, &filename_prefixes);
   std::sort(filename_prefixes.begin(), filename_prefixes.end());
 
-  Dataset dataset(FLAGS_patch_size, FLAGS_session_num, FLAGS_output_dataset_dir,
-                  kObstacleRatioThresh, FLAGS_distance_err_thresh,
-                  FLAGS_relative_distance_err_thresh, FLAGS_max_range,
-                  FLAGS_min_range);
+  Dataset dataset(FLAGS_patch_size,
+                  FLAGS_session_num,
+                  FLAGS_output_dataset_dir,
+                  kObstacleRatioThresh,
+                  FLAGS_distance_err_thresh,
+                  FLAGS_relative_distance_err_thresh,
+                  FLAGS_max_range,
+                  FLAGS_min_range,
+                  FLAGS_generate_labels_in_pixel_wise_mode,
+                  FLAGS_min_patch_info_ratio,
+                  FLAGS_min_err_pixel_ratio);
 
   cv::Size image_size(FLAGS_image_width, FLAGS_image_height);
   vector<Point> query_points = GenerateQueryPoints(
@@ -256,9 +274,6 @@ int main(int argc, char **argv) {
       LOG(FATAL) << "Unknown predicted depth image format "
                  << FLAGS_pred_depth_fmt;
     }
-
-    // TODO: Convert to color only if the image is
-    // not already in color
 
     // Read the left cam image
     Mat left_img = cv::imread(left_img_path, CV_LOAD_IMAGE_UNCHANGED);
