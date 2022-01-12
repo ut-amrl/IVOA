@@ -18,8 +18,7 @@
 # ========================================================================
 
 import sys, os
-sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
-
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import torch
 from torch.utils.data import DataLoader
@@ -110,9 +109,21 @@ if __name__=="__main__":
                         help=('The size the of original patch before being '
                               'resized to fit the network input size.'), 
                         type=int, required=True)
-    parser.add_argument('--fn_sample_weight_coeff', default=None, 
+    parser.add_argument('--fn_sample_weight_coeff', default=1.0, 
                         help=('Multiplies by the sampling weight for the false'
                               ' negative class. Use for outdoor data.'), 
+                        type=float, required=False)
+    parser.add_argument('--fp_sample_weight_coeff', default=1.0, 
+                        help=('Multiplies by the sampling weight for the false'
+                              ' positive class.'), 
+                        type=float, required=False)
+    parser.add_argument('--tp_sample_weight_coeff', default=1.0, 
+                        help=('Multiplies by the sampling weight for the true'
+                              ' positive class.'), 
+                        type=float, required=False)
+    parser.add_argument('--tn_sample_weight_coeff', default=1.0, 
+                        help=('Multiplies by the sampling weight for the true'
+                              ' negative class.'), 
                         type=float, required=False)
     parser.add_argument('--train_set', default=None, 
                         help="Training set name",
@@ -132,11 +143,12 @@ if __name__=="__main__":
     USE_COLOR_IMAGES = args.use_color_images
     ONLINE_PATCH_EXTRACTION = args.online_patch_extraction
     PATCH_SIZE = args.patch_crop_size
-    FN_SAMPLE_WEIGHT_COEFF = args.fn_sample_weight_coeff
     TRAIN_SET_NAME = args.train_set
     VALIDATION_SET_NAME = args.validation_set
     
-    class_weights_coeff = [1.0, 1.0, 1.0, 1.0]
+    class_weights_coeff = [args.tp_sample_weight_coeff, args.tn_sample_weight_coeff,
+                           args.fp_sample_weight_coeff, args.fn_sample_weight_coeff]
+
     NETWORK_MODEL = "alexnet" # "alexnet", "resnet152", "inception_v3"
     LOCK_FEATURE_EXT_LAYERS = False
     USE_GPU = True
@@ -162,18 +174,25 @@ if __name__=="__main__":
 
     # BATCH_SIZE = 4096 #
     # NUM_WORKERS = 16 #
+
+    BATCH_SIZE = 1000 #
+    NUM_WORKERS = 10 #
     
-    BATCH_SIZE = 400 #
-    NUM_WORKERS = 8 #
+    # BATCH_SIZE = 400 #
+    # NUM_WORKERS = 8 #
+
+    valid_set_dict = {
+      "valid_1":[1003],
+      "valid_1_cpip_tr0_v1":[1007, 1008],
+      "valid_2_cpip_tr1_v0_husky":[9, 11, 7, 23, 27, 35],
+      "valid_1_ganet_tr0_v0":[1007]
+    }
 
     train_set_dict = {
       "train_1":[1001, 1004],
-      "train_1_cpip_tr0_v1":[1000, 1001, 1002, 1003, 1004, 1005, 1006]
-      }
-      
-    valid_set_dict = {
-      "valid_1":[1003],
-      "valid_1_cpip_tr0_v1":[1007, 1008]
+      "train_1_cpip_tr0_v1":[1000, 1001, 1002, 1003, 1004, 1005, 1006],
+      "train_2_cpip_tr1_v0_husky":list(set(range(0,45)).difference(valid_set_dict["valid_2_cpip_tr1_v0_husky"])),
+      "train_1_ganet_tr0_v0":[1008]
     }
    
     
@@ -181,9 +200,6 @@ if __name__=="__main__":
         bagfile_list_train = train_set_dict[TRAIN_SET_NAME]
         bagfile_list_val = valid_set_dict[VALIDATION_SET_NAME]
         
-    if FN_SAMPLE_WEIGHT_COEFF is not None:
-        class_weights_coeff[3] = FN_SAMPLE_WEIGHT_COEFF
-    
     
     if LOAD_MODEL_WEIGHTS: print("Loaded Model: ", MODEL_LOAD_DIR)
     print("Output Model: ", MODEL_NAME)

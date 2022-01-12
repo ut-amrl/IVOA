@@ -17,7 +17,7 @@
 # If not, see <http://www.gnu.org/licenses/>.
 # ========================================================================
 
-import os
+import os, sys
 import torch
 import json
 from skimage import io, transform
@@ -163,11 +163,15 @@ class FailureDetectionDataset(Dataset):
         self.class_label = ['true_pos', 'true_neg', 'false_pos', 'false_neg']
         class_weights = (float(self.kinect_obs_existence.size) / 
                          self.class_count)
-        
+
         print('balanced class weights: ', class_weights)
-        for k in range(4):
-            class_weights[k] = class_weights[k] * class_weights_coeff[k]
+        for i in range(class_weights.size):
+            if class_weights_coeff[i] < sys.float_info.epsilon:
+                class_weights[i] = 0.0
+            else:
+                class_weights[i] = class_weights[i] * class_weights_coeff[i]
         print('Adjusted class weights: ', class_weights)
+        
         sample_weights = np.zeros(self.kinect_obs_existence.size)
         sample_weights[true_pos] = class_weights[0]
         sample_weights[true_neg] = class_weights[1]
