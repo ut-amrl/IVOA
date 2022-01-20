@@ -20,7 +20,7 @@ import os
 import torch
 import json
 #import pandas as pd
-from skimage import io, transform
+from skimage import io, transform, util
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
@@ -38,7 +38,8 @@ class FailureDetectionDataset(Dataset):
                  read_class_label_from_file=True,
                  load_patch_info=False,
                  segment_id = None, segment_length=None,
-                 calculate_total_distance=False):
+                 calculate_total_distance=False,
+                 image_scale_factor = 1.0):
         DATA_FILE = "full_images_data.json"
         NAMES_FILE = "full_images_names.json"
         PATCH_DATA_FILE = "image_patches_data.json"
@@ -54,6 +55,7 @@ class FailureDetectionDataset(Dataset):
         self.segment_id = segment_id
         self.segment_length = segment_length
         self.calculate_total_distance = calculate_total_distance
+        self.image_scale_factor = image_scale_factor
         
         #self.patch_names = []
         self.corr_img_patch_indices = []
@@ -243,6 +245,9 @@ class FailureDetectionDataset(Dataset):
         full_image_path = self.root_dir+ '/' + curr_bagfile_prefix + '/' \
                      + 'images/left_cam/' + curr_full_image_name
         full_img = io.imread(full_image_path)
+        if self.image_scale_factor != 1.0:
+                full_img = util.img_as_ubyte(transform.rescale(
+                    full_img, self.image_scale_factor, anti_aliasing=True))
 
         full_img = full_img.reshape((full_img.shape[0], full_img.shape[1],
                                      self.loaded_image_channel))

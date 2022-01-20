@@ -125,6 +125,9 @@ if __name__=="__main__":
                         help=('Multiplies by the sampling weight for the true'
                               ' negative class.'), 
                         type=float, required=False)
+    parser.add_argument('--image_scale_factor', default=1.0, 
+                        help=('Scale factor for resizing the loaded images.'),
+                        type=float, required=False)
     parser.add_argument('--train_set', default=None, 
                         help="Training set name",
                         required=True)
@@ -261,6 +264,7 @@ if __name__=="__main__":
                             meta_data_dir = META_DATA_DIR,
                             extract_from_full_img = ONLINE_PATCH_EXTRACTION,
                             patch_size = PATCH_SIZE,
+                            image_scale_factor = args.image_scale_factor,
                             class_weights_coeff = class_weights_coeff)
     val_dataset = FailureDetectionDataset(root_dir,
                             bagfile_list_val,
@@ -270,6 +274,7 @@ if __name__=="__main__":
                             meta_data_dir = META_DATA_DIR,
                             extract_from_full_img = ONLINE_PATCH_EXTRACTION,
                             patch_size = PATCH_SIZE,
+                            image_scale_factor = args.image_scale_factor,
                             class_weights_coeff = class_weights_coeff)
     datasets = {phases[0]: train_dataset, phases[1]: val_dataset}
     

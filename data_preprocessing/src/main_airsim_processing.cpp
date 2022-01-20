@@ -80,6 +80,8 @@ DEFINE_double(margin_width, 5,
 DEFINE_double(patch_size, 50,
               "Size of image patches to be labeled for "
               "training of IVOA.");
+DEFINE_double(patch_stride, 30,
+              "The stride size in pixels between two patches.");
 DEFINE_double(
     positive_height_obs_thresh, 0.3,
     "Minimum height of an obstacle in the positive direction of z axis.");
@@ -136,7 +138,6 @@ DEFINE_bool(generate_labels_in_pixel_wise_mode, false,
             "Whether or not to generate labels in pixel wise mode.");
 
 // Parameters
-const float kPatchStride = 30;
 const double kObstacleRatioThresh = 0.05;
 
 // Checks if all required command line arguments have been set
@@ -247,7 +248,7 @@ int main(int argc, char **argv) {
 
   cv::Size image_size(FLAGS_image_width, FLAGS_image_height);
   vector<Point> query_points = GenerateQueryPoints(
-      image_size, FLAGS_patch_size, kPatchStride, FLAGS_margin_width);
+      image_size, FLAGS_patch_size, FLAGS_patch_stride, FLAGS_margin_width);
 
   dataset.LoadQueryPoints(query_points);
 

@@ -22,7 +22,8 @@
 # through the network and then predict the class for each query points
 # using the information from a window around the query points
 import sys, os
-sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import torch
 from torch.utils.data import DataLoader

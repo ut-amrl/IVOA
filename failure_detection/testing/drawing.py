@@ -46,7 +46,7 @@ def make_bbox(point, size):
 # and the second column is the width (x) for the queried pixel
 def annotate_results_on_image(raw_image, query_pts, ground_truth, predictions,
                               classes, save_path, img_name):
-    color_list = ['blue', 'green', 'gold', 'red']
+    color_list = ['green', 'blue', 'gold', 'red']
     gt_circle_rad = 10
     pred_circle_rad = 5
     

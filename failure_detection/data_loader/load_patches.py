@@ -20,7 +20,8 @@
 import os, sys
 import torch
 import json
-from skimage import io, transform
+from skimage import io, util
+from skimage import transform as ts
 import numpy as np
 import matplotlib.pyplot as plt
 from math import floor
@@ -37,6 +38,7 @@ class FailureDetectionDataset(Dataset):
                  extract_from_full_img = False,
                  read_class_label_from_file = True,
                  patch_size = 100,
+                 image_scale_factor = 1.0,
                  class_weights_coeff = [1.0, 1.0, 1.0, 1.0]):
         _PATCH_DATA_FILE = "image_patches_data.json"
         _PATCH_NAME_FILE = "image_patches_names.json"
@@ -58,6 +60,7 @@ class FailureDetectionDataset(Dataset):
         self.transform = transform
         self.extract_from_full_img = extract_from_full_img
         self.patch_size = patch_size
+        self.image_scale_factor = image_scale_factor
         self.patch_names = []
         self.full_img_names = []
         self.jpp_obs_existence = []
@@ -216,6 +219,9 @@ class FailureDetectionDataset(Dataset):
             
         if self.extract_from_full_img:
             full_img = io.imread(full_image_path)
+            if self.image_scale_factor != 1.0:
+                full_img = util.img_as_ubyte(ts.rescale(
+                    full_img, self.image_scale_factor, anti_aliasing=True))
             full_img = full_img.reshape((full_img.shape[0], full_img.shape[1], 
                                self.loaded_image_channel))
             half_size = floor(self.patch_size / 2)
