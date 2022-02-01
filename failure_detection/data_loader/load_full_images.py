@@ -66,6 +66,7 @@ class FailureDetectionDataset(Dataset):
         self.patch_coord_left_x = []
         self.patch_coord_left_y = []
         self.multi_class_labels = []
+        self.seg_offset = 0
 
         # Check if the data loader should operate in segmentation mode
         # Segmentation mode allows for processing a specific part of a bagfile 
@@ -273,7 +274,7 @@ class FailureDetectionDataset(Dataset):
                 new_instance = np.array([self.patch_coord_left_y[j],
                                   self.patch_coord_left_x[j]]).reshape(1,2)
                 patch_coord_l = np.append(patch_coord_l, new_instance, 0)
-                
+
                 # Prepare jpp_obs_existence for current full_img
                 jpp_obs_existence = (jpp_obs_existence + 
                                     [self.jpp_obs_existence[j]])

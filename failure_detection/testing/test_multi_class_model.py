@@ -18,7 +18,7 @@
 # ========================================================================
 
 import sys, os
-sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import torch
 from torch.utils.data import DataLoader
@@ -193,7 +193,8 @@ if __name__=="__main__":
     NUM_WORKERS = 16 # Allocate 4 GPUs and 6 Cpus
     
     test_set_dict = {
-      "test_1":[1, 2, 3, 4, 5]
+      "test_1":[1, 2, 3, 4, 5],
+      "test_1_ganet_v0":[1007]
     }
    
     
@@ -349,6 +350,7 @@ if __name__=="__main__":
             multi_class_labels = data['multi_class_label']
             inputs = inputs.to(device)
             labels = multi_class_labels.to(device)
+
             
             particle_class_probs = torch.tensor([], dtype=torch.float,
                                                 device = device)
@@ -426,10 +428,43 @@ if __name__=="__main__":
                               normalize = True))
         cnf_matrix = confusion_matrix(all_multi_class_labels,
                               all_predictions_np)
+
+        # TODO: remove debugging
+        print("all_patch_multi_class_labels.shape: ",
+              all_multi_class_labels.shape)
+
+
+        # Convert the multi-class ground truth labesl to binary labels (FP and FN -> Failure, TP and TN -> No failure)
+        # Failure (1) and No failure (0)
+        all_binary_labels = np.logical_or(
+            all_multi_class_labels == 2, all_multi_class_labels == 3)
+        all_binary_predictions = np.logical_or(
+            all_predictions_np == 2, all_predictions_np == 3)
+
+        cnf_matrix_binary = confusion_matrix(all_binary_labels,
+                                        all_binary_predictions)                              
+
+        unique_class_labels = np.unique(all_multi_class_labels)
+        unique_class_label_predictions = np.unique(all_predictions_np)
+        if len(unique_class_labels) != len(unique_class_label_predictions):
+            print("WARNING: Number of unique ground truth class labels and  unique class predictions are different")
+            print("unique_class_labels:", unique_class_labels)
+            print("unique_class_label_predictions: ", unique_class_label_predictions)
+
+        class_names = ['TP', 'TN', 'FP', 'FN']
+        available_class_names = [class_names[int(i)] for i in unique_class_labels]
+
+
         plot_confusion_matrix(
             cnf_matrix, 
-            ["jpp_true_pos", "jpp_true_neg", "jpp_false_pos", "jpp_false_neg"],
+            available_class_names,
             RESULT_FILE_NAME, RESULTS_SAVE_DIR,
+            normalize=True)
+
+        plot_confusion_matrix(
+            cnf_matrix_binary, 
+            ['NF', 'F'],
+            RESULT_FILE_NAME+"_binary", RESULTS_SAVE_DIR,
             normalize=True)
 
         save_results(RESULTS_SAVE_DIR, RESULT_FILE_NAME, 

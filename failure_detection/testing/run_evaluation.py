@@ -549,6 +549,16 @@ if __name__=="__main__":
                               normalize = True))
         
         if SAVE_ALL_BAG_RESULTS_TOGETHER:
+            unique_class_labels = np.unique(all_multi_class_labels)
+            unique_class_label_predictions = np.unique(all_predictions)
+            if len(unique_class_labels) != len(unique_class_label_predictions):
+                print("WARNING: Number of unique ground truth class labels and  unique class predictions are different")
+                print("unique_class_labels:", unique_class_labels)
+                print("unique_class_label_predictions: ", unique_class_label_predictions)
+
+            class_names = ['TP', 'TN', 'FP', 'FN']
+            available_class_names = [class_names[int(i)] for i in unique_class_labels]
+
             # If running only a segment of a bagfile, do not draw the 
             # confusion matrix
             if (SEGMENT_ID is None) or (SEGMENT_LEN is None):
@@ -556,7 +566,7 @@ if __name__=="__main__":
                                       all_predictions)
                 plot_confusion_matrix(
                     cnf_matrix, 
-                    classes,
+                    available_class_names,
                     RESULT_FILE_NAME, RESULTS_SAVE_DIR,
                     normalize=True)
             
