@@ -81,3 +81,18 @@ Before running the. Before running the script, set the `clustering_res_path` to 
 1. Run `failure_detection/testing/visualize_error_clustering.py`. This script loads the dimensionality reduction results that were saved in the previous step and visualizes random samples from each cluster. Before running the script,
 you should set the paths to the outputs of `cluster_error_embeddings.py` and `dimensionality_reduction.py`
 and also the `sessions_list` at the top of `main()`.
+
+
+
+## Citation
+If you find this work useful in your research, please consider citing:
+```
+@inproceedings{rabiee2019ivoa,
+    title={IVOA: Introspective Vision for Obstacle Avoidance},
+    author={Rabiee, Sadegh and Biswas, Joydeep},
+    booktitle={2019 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+    year={2019},
+    pages={1230-1235},
+    doi={10.1109/IROS40897.2019.8968176}
+}
+```
