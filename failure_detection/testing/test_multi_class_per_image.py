@@ -48,6 +48,23 @@ from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score
 from matplotlib.backends.backend_pdf import PdfPages
 import cv2
+import time
+
+
+def append_dummy_patches(inputs,
+                         full_img_shape, patch_crop_size, patch_stride,  patch_extraction_margin):
+    img_height = full_img_shape[1]
+    img_width = full_img_shape[2]
+
+    query_samples_x = floor((img_width - 2 * patch_extraction_margin - patch_crop_size) / patch_stride + 1 )
+    query_samples_y = floor((img_height - 2 * patch_extraction_margin - patch_crop_size) / patch_stride + 1)
+    full_img_query_point_size =  query_samples_x * query_samples_y
+
+    current_patch_num = inputs.shape[0]
+    dummy_patch_num = full_img_query_point_size - current_patch_num
+    dummy_patches = torch.zeros(dummy_patch_num, inputs.shape[1], inputs.shape[2], inputs.shape[3])
+    inputs = torch.cat((inputs, dummy_patches), 0)
+    return inputs
 
 
 def convert_image_name_to_index(image_name, session_name):
@@ -115,7 +132,7 @@ def extract_patches_from_img(full_img,
     """
     patch_coords = patch_coords_left.numpy()
     half_patch_size = floor(patch_size / 2)
-    patches_transformed = torch.tensor([], dtype=torch.long)
+    patches_transformed = torch.tensor([], dtype=torch.float)
 
     i = 0
     for i in range(patch_coords.shape[0]):
@@ -257,9 +274,15 @@ def main():
                         type=lambda s: s.lower() in ['true', 't', 'yes', '1'],
                         help='True if you want to extract patches from full images',
                         required=True)
-    parser.add_argument('--patch_crop_size', default=None,
+    parser.add_argument('--patch_crop_size', default=36,
                         help=('The size the of original patch before being '
                               'resized to fit the network input size.'),
+                        type=int, required=True)
+    parser.add_argument('--patch_stride', default=15,
+                        help=('The stride size in pixels between two patches.'),
+                        type=int, required=True)
+    parser.add_argument('--patch_extraction_margin', default=20,
+                        help=('The margin size in the edges of the images to throw out during patch extraction. (pixels)'),
                         type=int, required=True)
     parser.add_argument('--test_set', default=None,
                         help="Test set name",
@@ -424,6 +447,13 @@ def main():
         starter, ender = torch.cuda.Event(
         enable_timing=True), torch.cuda.Event(enable_timing=True)
 
+        # Since the returned patches for each image are limited to those 
+        # that are within max range limits, we append dummy patches to the
+        # end of each batch just for the sake of inference time measurement.
+        APPEND_DUMMY_PATCHES = True
+    else:
+        APPEND_DUMMY_PATCHES = False
+
     for cur_phase in phases:
         net.eval()   # Set model to evaluate mode
 
@@ -468,8 +498,12 @@ def main():
                 img_name[0], session_name)
             inputs = extract_patches_from_img(full_img[0],
                              patch_coords_left[0], PATCH_SIZE, patch_transform)
+            patch_num = patch_coords_left.shape[1]
             
 
+            # Extract additional dummy patches such that the list covers all the input image. Used for timing measurements
+            if APPEND_DUMMY_PATCHES:
+                inputs = append_dummy_patches(inputs, full_img[0].shape, args.patch_crop_size,  args.patch_stride, args.patch_extraction_margin)
 
             # TODO: Should we extract additional dummy patches such that the list covers all the input image?
 
@@ -526,9 +560,11 @@ def main():
                         timings_individual_all += [starter.elapsed_time(ender)]
 
                     _, mean_preds = torch.max(outputs, 1)
+                    mean_preds = mean_preds[0:patch_num]
 
+                relevant_class_probs = softmax_layer(outputs)[0:patch_num,:]
                 all_class_probs = torch.cat((all_class_probs,
-                                            softmax_layer(outputs)), 0)
+                                            relevant_class_probs), 0)
 
             # ++++++
 
