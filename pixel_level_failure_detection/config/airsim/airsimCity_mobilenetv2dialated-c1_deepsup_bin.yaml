@@ -1,0 +1,61 @@
+DATASET:
+  num_class: 2
+  root: "/robodata/user_data/srabiee/results/ipr/depth_prediction/ganet_deep_airsim_01_dropout/model0_r0.0_mcdropoutOff_epoch_14/cityenv_wb/"
+  raw_img_root: "/robodata/srabiee/AirSim_IVSLAM/cityenv_wb/"
+  raw_img_folder: "img_left"
+  mask_img_folder: "valid_pixel_mask_abs1.0_rel_0.2_maxRange30_ds"
+  label_img_folder: "depth_err_labels_abs1.0_rel_0.2_maxRange30_ds"
+  train_set: "train_01_ganet_v0"
+  validation_set: "valid_01_ganet_v0"
+  test_set: "test_tmp"
+  use_color_images: True
+  is_dataset_color: True
+  session_prefix_len: 5
+  normalize_input: True
+  img_width: 512
+  img_height: 512
+  target_downsampling_rate: 8
+
+MODEL:
+  is_regression_mode : False
+  name: "ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup"
+  arch_encoder: "mobilenetv2dilated"
+  arch_decoder: "c1_deepsup"
+  fc_dim: 320
+
+TRAIN:
+  use_gpu : True
+  batch_size_per_gpu: 10
+  batch_size: 5
+  workers : 2
+  num_epoch: 200
+  start_epoch: 0
+  snapshot_interval : 1
+
+  optim: "SGD"
+  lr_encoder: 0.02
+  lr_decoder: 0.02
+  lr_pow: 0.9
+  beta1: 0.9
+  weight_decay: 1e-4
+  deep_sup_scale: 0.4
+  fix_bn: False
+  use_masked_loss: True
+
+
+TEST:
+  ground_truth_available : True
+  save_raw_output: True
+  measure_inference_time: True
+  output_img_width : 480
+  output_img_height : 300
+  test_model_encoder : "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup/snapshots/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_encoder_last_model_0024.pth"
+  test_model_decoder : "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup/snapshots/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_decoder_last_model_0024.pth"
+  use_gpu : True
+  batch_size_per_gpu : 3 #10
+  batch_size: 5 #5 
+  workers: 2 #2 
+  # result: "/robodata/srabiee/scratch/results/IVOA/evaluation/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/evaluation_multi_class_test_per_image/"
+  result: "/robodata/srabiee/scratch/results/IVOA/evaluation/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix_tmp/evaluation_multi_class_test_per_image/"
+
+DIR: "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/"
