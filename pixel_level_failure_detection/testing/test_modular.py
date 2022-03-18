@@ -32,8 +32,6 @@ from pixel_level_failure_detection.lib.utils.utils import MaskedMSELoss
 
 # TODO: 
 # 1- update the dataset and use the additional config params
-# 2- update the visualization/saving of the output images
-
 
 # This script is used for running network architecture trained in
 # train_modular.py on test data
@@ -103,6 +101,106 @@ def plot_confusion_matrix(cm, classes, file_name, file_path,
   plt.savefig(pp, format='pdf')
   pp.close()
   plt.close("confusion_mat")
+  
+  
+def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.ndarray, rgb_images: np.ndarray, output_folder_path: str, session_nums: np.ndarray, image_names: list, unnormalize: bool = False):
+  """
+  Colors the failure prediction for each pixel in the image and saves the resulting color image to file.
+  :param failure_prediction: pixel-wise failure prediction (numpy array but in tensor shape form, i.e. (N, H, W))
+  :param rgb_image: the input rgb image (N, C, H, W)
+  :param masks: the input masks (N, 1, H, W)
+  :param session_nums: array of session numbers corresponding to each image (N, 1)
+  :return:
+  """
+  alpha = 0.65
+  normalize_mean = np.array([0.485, 0.456, 0.406])
+  normalize_std = np.array([0.229, 0.224, 0.225])
+  if unnormalize:
+    normalize_mean_mat = np.zeros((rgb_images.shape[2],rgb_images.shape[3], rgb_images.shape[1]))
+    normalize_std_mat = np.zeros((rgb_images.shape[2],rgb_images.shape[3], rgb_images.shape[1]))
+    
+    for j in range(normalize_mean_mat.shape[2]):
+      normalize_mean_mat[:,:,j] = normalize_mean[j]
+      normalize_std_mat[:,:,j] = normalize_std[j]
+  
+  masks = np.squeeze(masks, axis=1)
+  failure_predictions = failure_predictions > 0.5
+  
+  assert failure_predictions.shape[0] == len(image_names)
+  
+  for i in range(failure_predictions.shape[0]):
+    failure_prediction = failure_predictions[i, :, :]
+    mask = masks[i, :, :]
+    rgb_image = rgb_images[i, :, :, :]
+    image_idx = image_names[i][0:-4]
+    session_idx = "{0:05d}".format(session_nums[i])
+
+    tmp = np.logical_or(failure_prediction == 1, failure_prediction == 0)
+    assert np.all(tmp), "Error: failure prediction is not in {0, 1}. failure_prediction = {}".format(
+        failure_prediction)
+
+    rgb_image = np.moveaxis(rgb_image, [0, 1, 2], [2, 0, 1])
+    if unnormalize:
+      rgb_image = rgb_image * normalize_std_mat + normalize_mean_mat
+      rgb_image = (rgb_image * 255).astype(np.uint8)
+
+
+    assert failure_prediction.shape[0] == rgb_image.shape[0], "Failure prediction and rgb image must have the same shape."
+    assert failure_prediction.shape[1] == rgb_image.shape[1], "Failure prediction and rgb image must have the same shape."
+
+    gray_img = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2GRAY)
+    gray_img_overlaid = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2BGRA)
+    gray_img_overlaid_masked = gray_img_overlaid.copy()
+
+    failure_prediction_color = np.zeros(gray_img_overlaid.shape, dtype=np.uint8)
+    failure_prediction_color[failure_prediction] = [0, 0, 255, 255]
+    failure_prediction_color[np.logical_not(failure_prediction)] = [
+        0, 255, 0, 255]
+    
+    # Generate the image with failure prediction overlaid
+    cv2.addWeighted(failure_prediction_color, alpha, gray_img_overlaid, 1 - alpha, 0, gray_img_overlaid)
+
+    # Generate the same image but color the masked area differently
+    failure_prediction_color_masked = failure_prediction_color
+    failure_prediction_color_masked[np.logical_not(mask)] = [255, 0, 0, 255]
+    cv2.addWeighted(failure_prediction_color_masked, alpha, gray_img_overlaid_masked, 1 - alpha, 0, gray_img_overlaid_masked)
+    
+    # Create output folder if it does not exist
+    output_path_vis = os.path.join(output_folder_path, str(session_idx), 'failure_pred_vis')
+    output_path_vis_masked = os.path.join(output_folder_path, str(session_idx), 'failure_pred_masked_vis')
+    if not os.path.exists(output_folder_path):
+      os.makedirs(output_folder_path)
+    if not os.path.exists(output_path_vis):
+      os.makedirs(output_path_vis)
+    if not os.path.exists(output_path_vis_masked):
+      os.makedirs(output_path_vis_masked)
+    output_image_path = os.path.join(output_path_vis, image_idx + ".png")
+    output_image_masked_path = os.path.join(output_path_vis_masked, image_idx + ".png")
+    cv2.imwrite(output_image_path,
+                gray_img_overlaid)
+    cv2.imwrite(output_image_masked_path,
+                gray_img_overlaid_masked)
+  
+  
+def resize_images(images: torch.Tensor, desired_size: tuple) -> torch.Tensor:
+  """
+  Resizes the images to the desired size.
+  :param images: tensor of shape (N, C, H, W)
+  :param desired_size: tuple of (W, H)
+  :return:
+  """
+  images_np = images.cpu().numpy()
+  
+  images_resized = torch.zeros(images.shape[0], images.shape[1], desired_size[1], desired_size[0], dtype=images.dtype)
+  images_resized_np = images_resized.numpy()
+  
+  images_np = np.transpose(images_np, (0, 2, 3, 1))
+  images_resized_np = np.transpose(images_resized_np, (0, 2, 3, 1))
+  
+  for i in range(images_resized_np.shape[0]):
+    images_resized_np[i,:,:,:] = cv2.resize(images_np[i,:,:,:], desired_size)
+  
+  return torch.from_numpy(np.transpose(images_resized_np, (0, 3, 1, 2))).to(images.device)
 
 
 # Helper function for saving inference results
@@ -232,6 +330,7 @@ def calculate_gpu_usage(gpus):
 
 
 def main(cfg, args, gpus):
+  CONFUSION_MATRIX_COMPUTATION_BATCH_SIZE = 100
   USE_MULTI_GPU = True if len(gpus) > 1 else False
   NUM_WORKERS = cfg.TEST.workers
   if cfg.TEST.use_gpu:
@@ -286,8 +385,8 @@ def main(cfg, args, gpus):
 
   input_img_width = int(cfg.DATASET.img_width)
   input_img_height = int(cfg.DATASET.img_height)
-  target_img_width = int(cfg.DATASET.img_width)
-  target_img_height = int(cfg.DATASET.img_height)
+  target_img_width = int(cfg.TEST.output_img_width)
+  target_img_height = int(cfg.TEST.output_img_height)
 
   # Transform loaded images. If not using color images, it will copy the single
   # channel 3 times to keep the size of an RGB image.
@@ -425,6 +524,8 @@ def main(cfg, args, gpus):
 
   all_predictions = np.array([], dtype=np.int_)
   all_binary_labels = np.array([], dtype=np.int_)
+  cnf_matrix = np.zeros((2, 2), dtype=np.int_)
+  valid_data_points_count = 0
 
   # Runs inference on all data
   for cur_phase in phases:
@@ -440,7 +541,6 @@ def main(cfg, args, gpus):
       session_nums = data['session']
       feed_dict = dict()
       feed_dict['input'] = input.to(device)
-      
 
       mask_np = None
       if cfg.TRAIN.use_masked_loss:
@@ -470,16 +570,20 @@ def main(cfg, args, gpus):
           torch.cuda.synchronize()
           timings_individual_all += [starter.elapsed_time(ender)]
         
+        # Resize the output to the size of original RGB images
+        input = resize_images(input, raw_output_img_size)  
+        output = resize_images(output, raw_output_img_size)
+       
         if cfg.TRAIN.use_masked_loss and cfg.MODEL.is_regression_mode:
           loss = criterion(output, feed_dict['target'], feed_dict['mask'])
         else:  
           loss = criterion(output, feed_dict['target'])
 
         if not cfg.MODEL.is_regression_mode:
-          target = torch.reshape(target, (output.size()[0], 
+          target = torch.reshape(target, (target.size()[0], 
                                           1,
-                                          output.size()[2],
-                                          output.size()[3]))
+                                          target.size()[1],
+                                          target.size()[2]))
         
         prediction_label = torch.argmax(output, dim=1)
 
@@ -487,10 +591,23 @@ def main(cfg, args, gpus):
         if cfg.TRAIN.use_masked_loss:
           curr_labels = target[feed_dict['mask']].cpu().numpy().astype(np.int_)
           current_pred = prediction_label[torch.squeeze(feed_dict['mask'], 1)].cpu().numpy().astype(np.int_)
-          
           all_predictions = np.concatenate((all_predictions, current_pred), 0) 
           all_binary_labels = np.concatenate((all_binary_labels, curr_labels), 0)
           
+        if i % CONFUSION_MATRIX_COMPUTATION_BATCH_SIZE == 0 and i > 0:
+          # Compute the confusion matrix for current batch and add it to the total confusion matrix
+          cnf_matrix = cnf_matrix + confusion_matrix(
+              all_binary_labels, all_predictions)
+          print("Current confusion matrix:")
+          print(cnf_matrix)
+
+          # Reset the arrays
+          valid_data_points_count += all_predictions.size
+          all_predictions = np.array([], dtype=np.int_)
+          all_binary_labels = np.array([], dtype=np.int_)
+          
+
+        
       ##TODO: TEMPORARY Debugging
       # mem_c = torch.cuda.memory_allocated()
       # print("Current Memory allocated (MB): ", mem_c * 1e-6)
@@ -499,27 +616,15 @@ def main(cfg, args, gpus):
       input_np = input.to(torch.device("cpu")).numpy()
       target_np = target.to(torch.device("cpu")).numpy()
       output_np = output.to(torch.device("cpu")).numpy()
-
-      # TODO: Update and enable save images
-      # save_result_images(input_np,
-      #                    target_np,
-      #                    output_np,
-      #                    img_names,
-      #                    session_nums,
-      #                    RESULT_SAVE_DIR,
-      #                    raw_output_size = raw_output_img_size,
-      #                    gt_available=cfg.TEST.ground_truth_available,
-      #                    save_raw_output=cfg.TEST.save_raw_output,
-      #                    initial_directory_prep=(i == 0),
-      #                    gt_masks = mask_np)
+      
+      
+      visualize_failure_predictions(prediction_label.cpu().numpy(), mask_np, input_np, RESULT_SAVE_DIR, session_nums.cpu().numpy(), img_names, unnormalize=True)
+      
 
       # # TODO: TEMPORARY Debugging
       # print("Loss size: ", loss.size())
       # print("Loss: ", loss)
       loss = loss.item()
-      
-      
-      
       running_loss += loss
 
 
@@ -547,10 +652,19 @@ def main(cfg, args, gpus):
   print('Total loss: ', running_loss / i)
   print('Total iteration', i)
   
-  cnf_matrix_binary = confusion_matrix(all_binary_labels,
-                                       all_predictions)
+  # Evalute the failure predictions
+  if all_binary_labels.size > 0:
+    cnf_matrix = cnf_matrix + confusion_matrix(all_binary_labels,
+                                               all_predictions)
+    valid_data_points_count += all_predictions.size
+  
+
+  print("Total valid data points: ", valid_data_points_count)
+  print("Confusion matrix:")
+  print(cnf_matrix)
+  
   plot_confusion_matrix(
-            cnf_matrix_binary,
+            cnf_matrix,
             ['NF', 'F'],
             "confusion_mat_binary", cfg.TEST.result,
             normalize=True)
