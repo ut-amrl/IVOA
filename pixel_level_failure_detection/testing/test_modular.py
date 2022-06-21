@@ -22,6 +22,7 @@ import itertools
 from matplotlib.backends.backend_pdf import PdfPages
 from distutils.version import LooseVersion
 from pixel_level_failure_detection.data_loader.load_images import DepthErrorDataset
+import csv
 
 # Third party libs
 from pixel_level_failure_detection.config import cfg
@@ -59,6 +60,58 @@ def group_weight(module):
   groups = [dict(params=group_decay),
             dict(params=group_no_decay, weight_decay=.0)]
   return groups
+
+def compute_classification_report_from_cnf(cnf_matrix):
+  """
+  Computes the classification report from the confusion matrix.
+  :param cnf_matrix: confusion matrix
+  :return: classification report
+  """
+  report = []
+  # Compute the classification report
+  sum_precision = 0.0
+  sum_recall = 0.0
+  sum_f1 = 0.0
+  sum_precision_weighted = 0.0
+  sum_recall_weighted = 0.0
+  sum_f1_weighted = 0.0
+  class_support = np.zeros((cnf_matrix.shape[0], 1))
+  for i in range(cnf_matrix.shape[0]):
+    tp = cnf_matrix[i, i]
+    fp = np.sum(cnf_matrix[:, i]) - tp
+    fn = np.sum(cnf_matrix[i, :]) - tp
+    tn = np.sum(cnf_matrix) - tp - fp - fn
+    class_support[i] = np.sum(cnf_matrix[i, :])
+
+    precision = tp / float(tp + fp)
+    recall = tp / float(tp + fn)
+    f1 = 2 * precision * recall / float(precision + recall)
+    label = "class_" + str(i)
+    class_report = {"label": label,
+                    "precision": precision, "recall": recall, "f1": f1}
+    sum_precision += precision
+    sum_recall += recall
+    sum_f1 += f1
+    sum_precision_weighted += precision * class_support[i]
+    sum_recall_weighted += recall * class_support[i]
+    sum_f1_weighted += f1 * class_support[i]
+    report += [class_report]
+
+  # Compute Macro average (averaging the unweighted mean per label)
+  class_num = float(cnf_matrix.shape[0])
+  macro_avg_report = {"label": "macro_avg", "precision": sum_precision /
+                      class_num, "recall": sum_recall / class_num, "f1": sum_f1 / class_num}
+  report += [macro_avg_report]
+
+  # Compute the weighted average (averaging the weighted mean per label)
+  sum_weights = float(np.sum(class_support))
+  weighted_avg_report = {"label": "weighted_avg",
+                         "precision": float(sum_precision_weighted / sum_weights),
+                         "recall": float(sum_recall_weighted / sum_weights),
+                         "f1": float(sum_f1_weighted / sum_weights)}
+  report += [weighted_avg_report]
+
+  return report
 
 # Helper function to draw the confusion matrix
 def plot_confusion_matrix(cm, classes, file_name, file_path,
@@ -347,7 +400,9 @@ def main(cfg, args, gpus):
 
   test_set_dict = {
     "test_tmp":[1007],
-    "test_01_ganet_v0": [1007, 1012, 1017, 1022, 1027, 1032, 2007, 2012, 2017, 2022, 2027, 2032]
+    "test_01_ganet_v0": [1007, 1012, 1017, 1022, 1027, 1032, 2007, 2012, 2017, 2022, 2027, 2032],
+    "test_ood_01_ganet_v0": [3005, 3006, 3007, 3008, 3009, 3010, 3011, 3012, 3013, 3014, 3015, 3016, 3017, 3018, 3019, 3020, 3021, 3022, 3023, 3024, 3025, 3026, 3027, 3028, 3029, 3030, 3031, 3032, 3033, 3034, 3035, 3036],
+    "test_ood_N_01_ganet_v0": [1000, 1001, 1002, 1003]
   }
 
   session_list_test = [7, 9, 10]
@@ -379,6 +434,15 @@ def main(cfg, args, gpus):
   phases = ['test']
   #data_set_portion_to_sample = {'train': 0.8, 'val': 0.2}
   data_set_portion_to_sample = {'train': 1.0, 'val': 1.0}
+  
+  # class_weights = torch.tensor([1.0, 1.0])
+  # TODO: Make this a cmd line parameter
+  # # For test_01_ganet_v0
+  class_weights = torch.tensor(
+      [5834415.0 / 233773276.0, 227938861.0 / 233773276.0], dtype=torch.float32)  # NF, F
+  # For test_ood_N_01_ganet_v0
+  # class_weights = torch.tensor(
+  #     [8731419.0 / 184377799.0, 175646380.0 / 184377799.0], dtype=torch.float32)  # NF, F
 
   normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                     std=[0.229, 0.224, 0.225])
@@ -445,19 +509,6 @@ def main(cfg, args, gpus):
                                                 num_workers=NUM_WORKERS)
                   for x in phases}
 
-  # Build the network from selected modules
-  net_encoder = ModelBuilder.build_encoder(
-    arch=cfg.MODEL.arch_encoder.lower(),
-    fc_dim=cfg.MODEL.fc_dim,
-    weights=cfg.MODEL.weights_encoder)
-  net_decoder = ModelBuilder.build_decoder(
-    arch=cfg.MODEL.arch_decoder.lower(),
-    fc_dim=cfg.MODEL.fc_dim,
-    num_class=cfg.DATASET.num_class,
-    weights=cfg.MODEL.weights_decoder,
-    regression_mode=cfg.MODEL.is_regression_mode,
-    inference_mode=True)
-
   # The desired size of the output image. The model interpolates the output
   # to this size
   desired_size = (cfg.DATASET.img_height,
@@ -477,23 +528,44 @@ def main(cfg, args, gpus):
         criterion = nn.MSELoss(reduction='mean')
         print("Regression Mode")
   else:
-    criterion = nn.NLLLoss(ignore_index=-1)
+    criterion = nn.NLLLoss(weight=class_weights, ignore_index=-1)
     print("Classification Mode")
 
-  if cfg.MODEL.arch_decoder.endswith('deepsup'):
-    net = SegmentationModule(
-      net_encoder, net_decoder, criterion, cfg.TRAIN.deep_sup_scale,
-      segSize=desired_size)
-  else:
-    net = SegmentationModule(
-      net_encoder, net_decoder, criterion, segSize=desired_size)
+  # Load networks
+  nets = []
+  for encoder, decoder in zip(cfg.MODEL.weights_encoder, 
+                              cfg.MODEL.weights_decoder):
+
+    # Build the network from selected modules
+    net_encoder = ModelBuilder.build_encoder(
+      arch=cfg.MODEL.arch_encoder.lower(),
+      fc_dim=cfg.MODEL.fc_dim,
+      weights=encoder)
+    net_decoder = ModelBuilder.build_decoder(
+      arch=cfg.MODEL.arch_decoder.lower(),
+      fc_dim=cfg.MODEL.fc_dim,
+      num_class=cfg.DATASET.num_class,
+      weights=decoder,
+      regression_mode=cfg.MODEL.is_regression_mode,
+      inference_mode=True)
+
+    if cfg.MODEL.arch_decoder.endswith('deepsup'):
+      net = SegmentationModule(
+        net_encoder, net_decoder, criterion, cfg.TRAIN.deep_sup_scale,
+        segSize=desired_size)
+    else:
+      net = SegmentationModule(
+        net_encoder, net_decoder, criterion, segSize=desired_size)
+    
+    nets += [net]
+    
 
   # TODO: TEMPORARY Debugging
   param_size = 0
-  for param in net.parameters():
+  for param in nets[0].parameters():
       param_size += param.nelement() * param.element_size()
   buffer_size = 0
-  for buffer in net.buffers():
+  for buffer in nets[0].buffers():
       buffer_size += buffer.nelement() * buffer.element_size()
   size_all_mb = (param_size + param_size) / 1024**2
   print('model size: {:.3f}MB'.format(size_all_mb))
@@ -504,14 +576,17 @@ def main(cfg, args, gpus):
       available_gpu_count = torch.cuda.device_count()
       print("Using ", len(gpus), " GPUs out of available ", available_gpu_count)
       print("Used GPUs: ", gpus)
-      net = nn.DataParallel(net, device_ids=gpus)
+      for net in nets:
+        net = nn.DataParallel(net, device_ids=gpus)
       # For synchronized batch normalization:
       patch_replication_callback(net)
     else:
       print("Requested GPUs not available: ", gpus)
       exit()
 
-  net = net.to(device)
+  for net in nets:
+    net = net.to(device)
+    net.eval()
 
   print("Starting Inference...")
   start_time = time.time()
@@ -530,11 +605,10 @@ def main(cfg, args, gpus):
   # Runs inference on all data
   for cur_phase in phases:
     # Set model to evaluate mode
-    net.eval()
-
+   
     running_loss = 0.0
     # Iterate over data
-    for i, data in enumerate(tqdm(data_loaders[cur_phase]), 0):      
+    for i, data in enumerate(tqdm(data_loaders[cur_phase]), 0):  
       # get the inputs
       input = data['img']
       img_names = data['img_name']
@@ -554,38 +628,63 @@ def main(cfg, args, gpus):
         print("ERROR: Regression mode not supported")
         exit()
 
-
-
       # Do not track history since we are in eval mode
       with torch.set_grad_enabled(False):
-        
-        if cfg.TEST.measure_inference_time and i > warm_up_iterations:
-          starter.record()
-        
-        # forward pass
-        output = net(feed_dict)
-        
-        if cfg.TEST.measure_inference_time and i > warm_up_iterations:
-          ender.record()
-          torch.cuda.synchronize()
-          timings_individual_all += [starter.elapsed_time(ender)]
-        
-        # Resize the output to the size of original RGB images
-        input = resize_images(input, raw_output_img_size)  
-        output = resize_images(output, raw_output_img_size)
-       
-        if cfg.TRAIN.use_masked_loss and cfg.MODEL.is_regression_mode:
-          loss = criterion(output, feed_dict['target'], feed_dict['mask'])
-        else:  
-          loss = criterion(output, feed_dict['target'])
+        if cfg.TEST.is_ensemble:
+          ensemble_pred_size = tuple([len(nets)] + [target.size()[0]] + [cfg.DATASET.num_class] + list(target.size()[1:]))
+          ensemble_prediction = torch.zeros(ensemble_pred_size, dtype=torch.float32, device=feed_dict['target'].device)
+          
+          j = 0
+          for net in nets:
+            output = net(feed_dict)
+            
+            # Resize the output to the size of original RGB images
+            input = resize_images(input, raw_output_img_size)  
+            output = resize_images(output, raw_output_img_size)
 
-        if not cfg.MODEL.is_regression_mode:
-          target = torch.reshape(target, (target.size()[0], 
-                                          1,
-                                          target.size()[1],
-                                          target.size()[2]))
+            ensemble_prediction[j, :, :, :] = output
+            j += 1
+          prediction = torch.mean(ensemble_prediction, axis=0)
+                    
+          if cfg.TRAIN.use_masked_loss and cfg.MODEL.is_regression_mode:
+            loss = criterion(prediction, feed_dict['target'], feed_dict['mask'])
+          else:  
+            loss = criterion(prediction, feed_dict['target'])
+          if not cfg.MODEL.is_regression_mode:
+            target = torch.reshape(target, (target.size()[0], 
+                                            1,
+                                            target.size()[1],
+                                            target.size()[2]))
+          prediction_label = torch.argmax(prediction, dim=1)
+          
+        else:
+          if cfg.TEST.measure_inference_time and i > warm_up_iterations:
+            starter.record()
+          
+          # forward pass
+          output = net(feed_dict)
+          
+          if cfg.TEST.measure_inference_time and i > warm_up_iterations:
+            ender.record()
+            torch.cuda.synchronize()
+            timings_individual_all += [starter.elapsed_time(ender)]
+          
+          # Resize the output to the size of original RGB images
+          input = resize_images(input, raw_output_img_size)  
+          output = resize_images(output, raw_output_img_size)
         
-        prediction_label = torch.argmax(output, dim=1)
+          if cfg.TRAIN.use_masked_loss and cfg.MODEL.is_regression_mode:
+            loss = criterion(output, feed_dict['target'], feed_dict['mask'])
+          else:  
+            loss = criterion(output, feed_dict['target'])
+
+          if not cfg.MODEL.is_regression_mode:
+            target = torch.reshape(target, (target.size()[0], 
+                                            1,
+                                            target.size()[1],
+                                            target.size()[2]))
+          
+          prediction_label = torch.argmax(output, dim=1)
 
         
         if cfg.TRAIN.use_masked_loss:
@@ -657,7 +756,27 @@ def main(cfg, args, gpus):
     cnf_matrix = cnf_matrix + confusion_matrix(all_binary_labels,
                                                all_predictions)
     valid_data_points_count += all_predictions.size
-  
+    
+  report = compute_classification_report_from_cnf(cnf_matrix)
+  print("Classification Report: ")
+  print(report)
+  # Save classification report to file
+  report_file_path = os.path.join(cfg.TEST.result, 'classification_report.csv')
+  with open(report_file_path, 'w') as csvfile:
+    print("Writing classification report to file: " + report_file_path)
+    writer = csv.DictWriter(csvfile, fieldnames=report[0].keys())
+    writer.writeheader()
+    writer.writerows(report)
+    
+  # Save confusion matrix to file
+  cnf_file_path = os.path.join(cfg.TEST.result, 'confusion_mat_binary.csv')
+  print("Writing confusion matrix to file: " + cnf_file_path)
+  np.savetxt(cnf_file_path, cnf_matrix, delimiter=",", fmt=['%d', '%d'])
+
+  # Save the total loss to file
+  loss_file_path = os.path.join(cfg.TEST.result, 'NLL_loss.txt')
+  with open(loss_file_path, 'w') as f:
+    f.write('NLL loss: {}'.format(running_loss / i))
 
   print("Total valid data points: ", valid_data_points_count)
   print("Confusion matrix:")
@@ -699,13 +818,28 @@ if __name__=="__main__":
   print("Reading config file " + args.cfg)
 
   # Load the model
-  cfg.MODEL.weights_encoder = cfg.TEST.test_model_encoder
-  cfg.MODEL.weights_decoder = cfg.TEST.test_model_decoder
-  print("Loading encoder from " + cfg.MODEL.weights_encoder)
-  print("Loading decoder from " + cfg.MODEL.weights_decoder)
-  assert os.path.exists(cfg.MODEL.weights_encoder) and \
-         os.path.exists(
-           cfg.MODEL.weights_decoder), "checkpoint does not exitst!"
+  if not cfg.TEST.is_ensemble:
+    cfg.MODEL.weights_encoder = [cfg.TEST.test_model_encoder]
+    cfg.MODEL.weights_decoder = [cfg.TEST.test_model_decoder]
+    print("Loading encoder from " + cfg.MODEL.weights_encoder[0])
+    print("Loading decoder from " + cfg.MODEL.weights_decoder[0])
+    assert os.path.exists(cfg.MODEL.weights_encoder[0]) and \
+          os.path.exists(
+            cfg.MODEL.weights_decoder[0]), "checkpoint does not exitst!"
+  else:
+    print("Loading ensemble model: ")
+    cfg.MODEL.weights_encoder = []
+    cfg.MODEL.weights_decoder = []
+    for encoder, decoder in zip(cfg.TEST.test_model_encoder_ensemble, 
+                                cfg.TEST.test_model_decoder_ensemble):
+      cfg.MODEL.weights_encoder += [encoder]
+      cfg.MODEL.weights_decoder += [decoder]
+      print("Loading encoder from " + encoder)
+      print("Loading decoder from " + decoder)
+      assert os.path.exists(encoder) and \
+            os.path.exists(
+              decoder), "checkpoint does not exitst!"
+  
 
   # Parse gpu ids
   gpus = parse_devices(args.gpus)

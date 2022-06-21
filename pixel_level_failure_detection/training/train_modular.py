@@ -256,7 +256,8 @@ def main(cfg, args, gpus):
 
   data_loaders = {x: torch.utils.data.DataLoader(datasets[x],
                                                 batch_size=BATCH_SIZE,
-                                                num_workers=NUM_WORKERS)
+                                                num_workers=NUM_WORKERS,
+                                                shuffle=True)
                   for x in phases}
 
   # Build the network from selected modules

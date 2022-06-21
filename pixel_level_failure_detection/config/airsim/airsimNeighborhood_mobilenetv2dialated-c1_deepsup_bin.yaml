@@ -1,13 +1,14 @@
 DATASET:
   num_class: 2
-  root: "/robodata/user_data/srabiee/results/ipr/depth_prediction/ganet_deep_airsim_01_dropout/model0_r0.0_mcdropoutOff_epoch_14/cityenv_wb/"
-  raw_img_root: "/robodata/srabiee/AirSim_IVSLAM/cityenv_wb/"
+  root: "/robodata/user_data/srabiee/results/ipr/depth_prediction/ganet_deep_airsim_01_dropout/model0_r0.0_mcdropoutOff_epoch_14/neighborhood_wb/"
+  raw_img_root: "/robodata/user_data/srabiee/AirSim_BNN/neighborhood_wb/"
   raw_img_folder: "img_left"
   mask_img_folder: "valid_pixel_mask_abs1.0_rel_0.2_maxRange30_ds"
   label_img_folder: "depth_err_labels_abs1.0_rel_0.2_maxRange30_ds"
   train_set: "train_01_ganet_v0"
   validation_set: "valid_01_ganet_v0"
-  test_set: "test_01_ganet_v0"
+  # test_set: "test_01_ganet_v0"
+  test_set: "test_ood_N_01_ganet_v0"
   use_color_images: True
   is_dataset_color: True
   session_prefix_len: 5
@@ -53,17 +54,15 @@ TEST:
   measure_inference_time: True
   output_img_width : 480
   output_img_height : 300
-  test_model_encoder : "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup/snapshots/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_encoder_last_model_0024.pth"
-  test_model_decoder : "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup/snapshots/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_decoder_last_model_0024.pth"
+  test_model_encoder : "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_1/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_1_encoder_best_model.pth"
+  test_model_decoder : "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_1/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_1_decoder_best_model.pth"
   test_model_encoder_ensemble : ("/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_1/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_1_encoder_best_model.pth", "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_2/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_2_encoder_best_model.pth", "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_3/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_3_encoder_best_model.pth")
   test_model_decoder_ensemble : ("/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_1/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_1_decoder_best_model.pth", "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_2/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_2_decoder_best_model.pth", "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_3/ivoa_pix_ensemble_epoch_14_e012_mobilenet_c1deepsup_inst_3_decoder_best_model.pth")
   use_gpu : True
   batch_size_per_gpu : 1 #10
   batch_size: 5 #5 
   workers: 2 #2 
-  # result: "/robodata/srabiee/scratch/results/IVOA/evaluation/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix_neighborhood_wb/evaluation_multi_class_test_per_image/"
-  result: "/robodata/srabiee/scratch/results/IVOA/evaluation/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/evaluation_multi_class_test_per_image/"
-  # result: "/robodata/srabiee/scratch/results/IVOA/evaluation/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix_t2/evaluation_multi_class_test_per_image/"
-  # result: "/robodata/srabiee/scratch/results/IVOA/evaluation/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix_tmp/evaluation_multi_class_test_per_image/"
+  result: "/robodata/srabiee/scratch/results/IVOA/evaluation/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix_neighborhood_wb/evaluation_multi_class_test_per_image/"
+  # result: "/robodata/srabiee/scratch/results/IVOA/evaluation/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix_neighborhood_wb_ensemble/evaluation_multi_class_test_per_image/"
 
 DIR: "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/"

@@ -119,6 +119,8 @@ _C.TRAIN.use_masked_loss = False
 # Testing
 # -----------------------------------------------------------------------------
 _C.TEST = CN()
+# If is_ensemble is True, test_model_encoder_ensemble will be used, otherwise test_model_encoder will be loaded
+_C.TEST.is_ensemble = False
 # If ground truth is available it will be added to the visualization
 _C.TEST.ground_truth_available = False
 # Set to true if you want to visualize output images as well as their
@@ -132,6 +134,8 @@ _C.TEST.output_img_height = 600
 # The path to model to test on
 _C.TEST.test_model_encoder = "epoch_20.pth"
 _C.TEST.test_model_decoder = "epoch_20.pth"
+_C.TEST.test_model_encoder_ensemble = ("epoch_20_inst1.pth", "epoch_20_inst2.pth")
+_C.TEST.test_model_decoder_ensemble = ("epoch_20_inst1.pth", "epoch_20_inst2.pth")
 _C.TEST.use_gpu = True
 _C.TEST.batch_size_per_gpu = 2
 # If use_gpu is True , batch_size will be overwritten by
