@@ -31,6 +31,8 @@ from lib.nn import patch_replication_callback
 from lib.utils.utils import parse_devices
 from pixel_level_failure_detection.lib.utils.utils import MaskedMSELoss
 
+from depth_utilities import colorize
+
 # TODO: 
 # 1- update the dataset and use the additional config params
 
@@ -234,6 +236,75 @@ def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.nda
     cv2.imwrite(output_image_masked_path,
                 gray_img_overlaid_masked)
   
+def convert_image_name_to_index(image_name):
+  """
+  Converts the image name to an index.
+  :param image_name
+  :return: index
+  """
+  image_index = image_name.rstrip(".png")
+
+  return image_index
+ 
+def visualize_scalar_img_on_rgb(scalar_img: np.ndarray, rgb_image: np.ndarray, output_folder_path: str, image_idx: str, max_unc_threshold: float =10.0, unnormalize: bool =False):
+  """
+  Visualizes the magnitude of the input scalar image for each pixel in the image.
+  :param rgb_image: the input rgb image np.array (1, C, H, W)
+  :param scalar_img: the input masks np.array (1, 1, H, W)
+  :return:
+  """
+  
+  normalize_mean = np.array([0.485, 0.456, 0.406])
+  normalize_std = np.array([0.229, 0.224, 0.225])
+  if unnormalize:
+    normalize_mean_mat = np.zeros((rgb_image.shape[2],rgb_image.shape[3], rgb_image.shape[1]))
+    normalize_std_mat = np.zeros((rgb_image.shape[2],rgb_image.shape[3], rgb_image.shape[1]))
+    
+    for j in range(normalize_mean_mat.shape[2]):
+      normalize_mean_mat[:,:,j] = normalize_mean[j]
+      normalize_std_mat[:,:,j] = normalize_std[j]
+  
+  alpha = 0.5
+  MAX_UNC_THRESH_VISUALIZATION = max_unc_threshold
+
+  # Remove the first axis (the batch dimension for the rgb image and the batch and channel dimensions for the scalar image)
+  scalar_img = np.squeeze(scalar_img, axis=(0,1))
+  rgb_image = np.squeeze(rgb_image, axis=0)
+  
+  rgb_image = np.moveaxis(rgb_image, [0, 1, 2], [2, 0, 1])
+  if unnormalize:
+    rgb_image = rgb_image * normalize_std_mat + normalize_mean_mat
+    rgb_image = (rgb_image * 255).astype(np.uint8)
+
+  rgb_image = (cv2.resize(
+      rgb_image,
+      (scalar_img.shape[1], scalar_img.shape[0]))
+      * 1).astype(np.uint8)
+
+  assert scalar_img.shape[0] == rgb_image.shape[0], "Scalar img and rgb image must have the same shape."
+  assert scalar_img.shape[1] == rgb_image.shape[1], "Scalar img and rgb image must have the same shape."
+
+  gray_img = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2GRAY)
+  gray_img_overlaid = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGBA)
+
+  unc_img = colorize(
+      scalar_img, plt.get_cmap('viridis'), 0, MAX_UNC_THRESH_VISUALIZATION)
+  unc_img = np.uint8(unc_img * 255)
+  unc_img = cv2.cvtColor(unc_img, cv2.COLOR_RGBA2BGRA)
+
+  gray_img_overlaid = gray_img_overlaid.astype(
+      np.uint8)
+  cv2.addWeighted(unc_img,
+                  alpha, gray_img_overlaid, 1 - alpha,
+                  0, gray_img_overlaid)
+
+  # Create output folder if it does not exist
+  if not os.path.exists(output_folder_path):
+    os.makedirs(output_folder_path)
+  output_image_path = os.path.join(output_folder_path, image_idx + ".png")
+  cv2.imwrite(output_image_path,
+              gray_img_overlaid)
+  
   
 def resize_images(images: torch.Tensor, desired_size: tuple) -> torch.Tensor:
   """
@@ -391,6 +462,11 @@ def main(cfg, args, gpus):
   else:
     BATCH_SIZE = cfg.TEST.batch_size
 
+  # TODO: Support batch-size of larger than 1.
+  if BATCH_SIZE > 1:
+    print("ERROR - Batches of size > 1 are not supported.")
+    exit()
+
   RESULT_SAVE_DIR = cfg.TEST.result + '/' + cfg.MODEL.name + '/'
   if not os.path.exists(RESULT_SAVE_DIR):
     os.makedirs(RESULT_SAVE_DIR)
@@ -402,7 +478,8 @@ def main(cfg, args, gpus):
     "test_tmp":[1007],
     "test_01_ganet_v0": [1007, 1012, 1017, 1022, 1027, 1032, 2007, 2012, 2017, 2022, 2027, 2032],
     "test_ood_01_ganet_v0": [3005, 3006, 3007, 3008, 3009, 3010, 3011, 3012, 3013, 3014, 3015, 3016, 3017, 3018, 3019, 3020, 3021, 3022, 3023, 3024, 3025, 3026, 3027, 3028, 3029, 3030, 3031, 3032, 3033, 3034, 3035, 3036],
-    "test_ood_N_01_ganet_v0": [1000, 1001, 1002, 1003]
+    "test_ood_N_01_ganet_v0": [1000, 1001, 1002, 1003],
+    "test_ood_africa_01_ganet_v0": [1000, 1001, 1002, 1003, 1004]
   }
 
   session_list_test = [7, 9, 10]
@@ -443,6 +520,9 @@ def main(cfg, args, gpus):
   # For test_ood_N_01_ganet_v0
   # class_weights = torch.tensor(
   #     [8731419.0 / 184377799.0, 175646380.0 / 184377799.0], dtype=torch.float32)  # NF, F
+  # For test_ood_africa_01_ganet_v0
+  # class_weights = torch.tensor(
+  #     [48456861.0 / 134077512.0, 85620651.0 / 134077512.0], dtype=torch.float32)  # NF, F
 
   normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                     std=[0.229, 0.224, 0.225])
@@ -602,6 +682,11 @@ def main(cfg, args, gpus):
   cnf_matrix = np.zeros((2, 2), dtype=np.int_)
   valid_data_points_count = 0
 
+  # Stores the entropy for all predictions that correspond to in-range depth values
+  all_masked_entropy = np.array([], dtype=np.float_)
+  
+  session_name_format = "{0:05d}"
+
   # Runs inference on all data
   for cur_phase in phases:
     # Set model to evaluate mode
@@ -615,6 +700,9 @@ def main(cfg, args, gpus):
       session_nums = data['session']
       feed_dict = dict()
       feed_dict['input'] = input.to(device)
+
+      img_ids = [convert_image_name_to_index(img_name) for img_name in img_names]
+      
 
       mask_np = None
       if cfg.TRAIN.use_masked_loss:
@@ -655,6 +743,15 @@ def main(cfg, args, gpus):
                                             1,
                                             target.size()[1],
                                             target.size()[2]))
+            
+          # Compute Entropy
+          # TODO: Handle batch_size > 1
+          entropy = torch.sum(-prediction * torch.log(prediction + 1e-15), dim=1)
+          entropy.unsqueeze_(1)
+
+          masked_entropy = entropy[feed_dict['mask']]
+          all_masked_entropy = np.concatenate((all_masked_entropy, masked_entropy.cpu().numpy()))
+            
           prediction_label = torch.argmax(prediction, dim=1)
           
         else:
@@ -705,6 +802,18 @@ def main(cfg, args, gpus):
           all_predictions = np.array([], dtype=np.int_)
           all_binary_labels = np.array([], dtype=np.int_)
           
+          # TODO: Save the entropy data to file
+          entropy_out_dir = os.path.join(RESULT_SAVE_DIR, 'entropy')
+          if not os.path.exists(entropy_out_dir):
+            os.makedirs(entropy_out_dir)
+          entropy_file_path = os.path.join(entropy_out_dir, str(i/CONFUSION_MATRIX_COMPUTATION_BATCH_SIZE) + '.npy')
+          np.save(entropy_file_path , all_masked_entropy)
+          
+          print("Saved entropy data to file: {}".format(entropy_file_path))
+          
+          # Reset the entropy array
+          all_masked_entropy = np.array([], dtype=np.float_)
+          
 
         
       ##TODO: TEMPORARY Debugging
@@ -718,6 +827,12 @@ def main(cfg, args, gpus):
       
       
       visualize_failure_predictions(prediction_label.cpu().numpy(), mask_np, input_np, RESULT_SAVE_DIR, session_nums.cpu().numpy(), img_names, unnormalize=True)
+      
+      # TODO: Handle batch_size > 1. Currently only visuzlize the first image in the batch
+      # TODO: tune max unc threshold param
+      session_name = "{0:05d}".format(session_nums[0])
+      visualize_scalar_img_on_rgb(
+      entropy.cpu().numpy(), input_np, os.path.join(RESULT_SAVE_DIR, session_name, 'prediction_entropy_vis'), img_ids[0], max_unc_threshold=0.05, unnormalize=True)
       
 
       # # TODO: TEMPORARY Debugging
@@ -767,6 +882,15 @@ def main(cfg, args, gpus):
     writer = csv.DictWriter(csvfile, fieldnames=report[0].keys())
     writer.writeheader()
     writer.writerows(report)
+    
+    
+  # Save the entropy data to file
+  entropy_out_dir = os.path.join(RESULT_SAVE_DIR, 'entropy')
+  if not os.path.exists(entropy_out_dir):
+    os.makedirs(entropy_out_dir)
+  entropy_file_path = os.path.join(entropy_out_dir, '0.npy')
+  np.save(entropy_file_path , all_masked_entropy)
+  print("Saved entropy data to file: {}".format(entropy_file_path))
     
   # Save confusion matrix to file
   cnf_file_path = os.path.join(cfg.TEST.result, 'confusion_mat_binary.csv')
