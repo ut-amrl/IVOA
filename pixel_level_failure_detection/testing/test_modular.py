@@ -454,6 +454,7 @@ def calculate_gpu_usage(gpus):
 
 
 def main(cfg, args, gpus):
+  ENTROPY_THRESH = 0.025
   CONFUSION_MATRIX_COMPUTATION_BATCH_SIZE = 100
   USE_MULTI_GPU = True if len(gpus) > 1 else False
   NUM_WORKERS = cfg.TEST.workers
@@ -480,6 +481,15 @@ def main(cfg, args, gpus):
     "test_ood_01_ganet_v0": [3005, 3006, 3007, 3008, 3009, 3010, 3011, 3012, 3013, 3014, 3015, 3016, 3017, 3018, 3019, 3020, 3021, 3022, 3023, 3024, 3025, 3026, 3027, 3028, 3029, 3030, 3031, 3032, 3033, 3034, 3035, 3036],
     "test_ood_N_01_ganet_v0": [1000, 1001, 1002, 1003],
     "test_ood_africa_01_ganet_v0": [1000, 1001, 1002, 1003, 1004]
+  }
+
+  class_weights_dict = {
+    "test_01_ganet_v0": torch.tensor(
+      [5834415.0 / 233773276.0, 227938861.0 / 233773276.0], dtype=torch.float32),  # NF, F
+    "test_ood_N_01_ganet_v0": torch.tensor(
+      [8731419.0 / 184377799.0, 175646380.0 / 184377799.0], dtype=torch.float32),  # NF, F
+    "test_ood_africa_01_ganet_v0": torch.tensor(
+      [48456861.0 / 134077512.0, 85620651.0 / 134077512.0], dtype=torch.float32)  # NF, F
   }
 
   session_list_test = [7, 9, 10]
@@ -512,17 +522,11 @@ def main(cfg, args, gpus):
   #data_set_portion_to_sample = {'train': 0.8, 'val': 0.2}
   data_set_portion_to_sample = {'train': 1.0, 'val': 1.0}
   
-  # class_weights = torch.tensor([1.0, 1.0])
-  # TODO: Make this a cmd line parameter
-  # # For test_01_ganet_v0
-  class_weights = torch.tensor(
-      [5834415.0 / 233773276.0, 227938861.0 / 233773276.0], dtype=torch.float32)  # NF, F
-  # For test_ood_N_01_ganet_v0
-  # class_weights = torch.tensor(
-  #     [8731419.0 / 184377799.0, 175646380.0 / 184377799.0], dtype=torch.float32)  # NF, F
-  # For test_ood_africa_01_ganet_v0
-  # class_weights = torch.tensor(
-  #     [48456861.0 / 134077512.0, 85620651.0 / 134077512.0], dtype=torch.float32)  # NF, F
+  assert cfg.DATASET.test_set in class_weights_dict, "Class weights not found for test set {}".format(
+    cfg.DATASET.test_set)  
+  class_weights = class_weights_dict[cfg.DATASET.test_set]
+  
+
 
   normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                     std=[0.229, 0.224, 0.225])
@@ -682,6 +686,9 @@ def main(cfg, args, gpus):
   cnf_matrix = np.zeros((2, 2), dtype=np.int_)
   valid_data_points_count = 0
 
+  pred_ood_in_range_count = 0 # Counts the number of predicted OOD data points that were also within the valid depth range
+  pred_failure_in_range_count = 0 # Counts the number of predicted failure data points that were also within the valid depth range
+  
   # Stores the entropy for all predictions that correspond to in-range depth values
   all_masked_entropy = np.array([], dtype=np.float_)
   
@@ -747,12 +754,18 @@ def main(cfg, args, gpus):
           # Compute Entropy
           # TODO: Handle batch_size > 1
           entropy = torch.sum(-prediction * torch.log(prediction + 1e-15), dim=1)
+          ood_mask = entropy > ENTROPY_THRESH # 1 X H X W
           entropy.unsqueeze_(1)
 
           masked_entropy = entropy[feed_dict['mask']]
           all_masked_entropy = np.concatenate((all_masked_entropy, masked_entropy.cpu().numpy()))
+          
+
             
           prediction_label = torch.argmax(prediction, dim=1)
+          
+          ood_mask.unsqueeze_(1)
+          pred_ood_in_range_count += torch.sum(ood_mask[feed_dict['mask']])
           
         else:
           if cfg.TEST.measure_inference_time and i > warm_up_iterations:
@@ -787,8 +800,10 @@ def main(cfg, args, gpus):
         if cfg.TRAIN.use_masked_loss:
           curr_labels = target[feed_dict['mask']].cpu().numpy().astype(np.int_)
           current_pred = prediction_label[torch.squeeze(feed_dict['mask'], 1)].cpu().numpy().astype(np.int_)
+          pred_failure_in_range_count += np.sum(current_pred)
           all_predictions = np.concatenate((all_predictions, current_pred), 0) 
           all_binary_labels = np.concatenate((all_binary_labels, curr_labels), 0)
+          
           
         if i % CONFUSION_MATRIX_COMPUTATION_BATCH_SIZE == 0 and i > 0:
           # Compute the confusion matrix for current batch and add it to the total confusion matrix
@@ -900,7 +915,10 @@ def main(cfg, args, gpus):
   # Save the total loss to file
   loss_file_path = os.path.join(cfg.TEST.result, 'NLL_loss.txt')
   with open(loss_file_path, 'w') as f:
-    f.write('NLL loss: {}'.format(running_loss / i))
+    f.write('NLL loss: {}\n'.format(running_loss / i))    
+    f.write('Total valid (within depth range) data points: {}\n'.format(valid_data_points_count))
+    f.write("Total predicted OOD data points: {}\n".format(pred_ood_in_range_count.item()))
+    f.write("Total predicted failure data points: {}\n".format(pred_failure_in_range_count))
 
   print("Total valid data points: ", valid_data_points_count)
   print("Confusion matrix:")
