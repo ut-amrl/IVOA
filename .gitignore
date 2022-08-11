@@ -136,3 +136,9 @@ data_preprocessing/bin
 
 # Data files/execution results
 data_preprocessing/scripts/*.csv
+
+# Tensorboard files
+pixel_level_failure_detection/training/run_scripts/runs
+
+# Pre-trained models
+pixel_level_failure_detection/training/run_scripts/pretrained

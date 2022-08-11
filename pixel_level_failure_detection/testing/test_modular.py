@@ -158,12 +158,13 @@ def plot_confusion_matrix(cm, classes, file_name, file_path,
   plt.close("confusion_mat")
   
   
-def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.ndarray, rgb_images: np.ndarray, output_folder_path: str, session_nums: np.ndarray, image_names: list, unnormalize: bool = False):
+def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.ndarray, ood_predictions: np.ndarray, rgb_images: np.ndarray, output_folder_path: str, session_nums: np.ndarray, image_names: list, unnormalize: bool = False, visualize_ood: bool = False):
   """
   Colors the failure prediction for each pixel in the image and saves the resulting color image to file.
   :param failure_prediction: pixel-wise failure prediction (numpy array but in tensor shape form, i.e. (N, H, W))
   :param rgb_image: the input rgb image (N, C, H, W)
   :param masks: the input masks (N, 1, H, W)
+  :param ood_predictions: the ood predictions (N, 1, H, W). The values should be binary
   :param session_nums: array of session numbers corresponding to each image (N, 1)
   :return:
   """
@@ -179,6 +180,8 @@ def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.nda
       normalize_std_mat[:,:,j] = normalize_std[j]
   
   masks = np.squeeze(masks, axis=1)
+  if visualize_ood:
+    ood_predictions = np.squeeze(ood_predictions, axis=1)
   failure_predictions = failure_predictions > 0.5
   
   assert failure_predictions.shape[0] == len(image_names)
@@ -186,6 +189,8 @@ def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.nda
   for i in range(failure_predictions.shape[0]):
     failure_prediction = failure_predictions[i, :, :]
     mask = masks[i, :, :]
+    if visualize_ood:
+      ood_prediction = ood_predictions[i, :, :]
     rgb_image = rgb_images[i, :, :, :]
     image_idx = image_names[i][0:-4]
     session_idx = "{0:05d}".format(session_nums[i])
@@ -206,11 +211,16 @@ def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.nda
     gray_img = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2GRAY)
     gray_img_overlaid = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2BGRA)
     gray_img_overlaid_masked = gray_img_overlaid.copy()
+    gray_img_overlaid_with_ood_masked = gray_img_overlaid.copy()
 
     failure_prediction_color = np.zeros(gray_img_overlaid.shape, dtype=np.uint8)
     failure_prediction_color[failure_prediction] = [0, 0, 255, 255]
     failure_prediction_color[np.logical_not(failure_prediction)] = [
         0, 255, 0, 255]
+    
+    if visualize_ood:
+      failure_prediction_color_with_ood = failure_prediction_color.copy()
+      failure_prediction_color_with_ood[ood_prediction] = [255, 0, 255, 255]
     
     # Generate the image with failure prediction overlaid
     cv2.addWeighted(failure_prediction_color, alpha, gray_img_overlaid, 1 - alpha, 0, gray_img_overlaid)
@@ -220,21 +230,34 @@ def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.nda
     failure_prediction_color_masked[np.logical_not(mask)] = [255, 0, 0, 255]
     cv2.addWeighted(failure_prediction_color_masked, alpha, gray_img_overlaid_masked, 1 - alpha, 0, gray_img_overlaid_masked)
     
+    # Generate the masked failure prediction visualization with ood predictions
+    if visualize_ood:
+      failure_prediction_color_ood_masked = failure_prediction_color_with_ood
+      failure_prediction_color_ood_masked[np.logical_not(mask)] = [255, 0, 0, 255]
+      cv2.addWeighted(failure_prediction_color_ood_masked, alpha, gray_img_overlaid_with_ood_masked, 1 - alpha, 0, gray_img_overlaid_with_ood_masked)
+    
     # Create output folder if it does not exist
     output_path_vis = os.path.join(output_folder_path, str(session_idx), 'failure_pred_vis')
     output_path_vis_masked = os.path.join(output_folder_path, str(session_idx), 'failure_pred_masked_vis')
+    output_path_vis_ood_masked = os.path.join(output_folder_path, str(session_idx), 'failure_pred_with_ood_masked_vis')
     if not os.path.exists(output_folder_path):
       os.makedirs(output_folder_path)
     if not os.path.exists(output_path_vis):
       os.makedirs(output_path_vis)
     if not os.path.exists(output_path_vis_masked):
       os.makedirs(output_path_vis_masked)
+    if not os.path.exists(output_path_vis_ood_masked) and visualize_ood:
+      os.makedirs(output_path_vis_ood_masked)
     output_image_path = os.path.join(output_path_vis, image_idx + ".png")
     output_image_masked_path = os.path.join(output_path_vis_masked, image_idx + ".png")
+    output_image_ood_masked_path = os.path.join(output_path_vis_ood_masked, image_idx + ".png")
     cv2.imwrite(output_image_path,
                 gray_img_overlaid)
     cv2.imwrite(output_image_masked_path,
                 gray_img_overlaid_masked)
+    if visualize_ood:
+      cv2.imwrite(output_image_ood_masked_path,
+                gray_img_overlaid_with_ood_masked)
   
 def convert_image_name_to_index(image_name):
   """
@@ -454,8 +477,13 @@ def calculate_gpu_usage(gpus):
 
 
 def main(cfg, args, gpus):
-  ENTROPY_THRESH = 0.025
+  DETECT_OOD_BASED_ON_ENTROPY = True # if set to False then OOD is detected based on prediction variance.
+  ENTROPY_THRESH = 0.1
+  # PREDICTION_VARIANCE_THRESH = 0.0005
+  PREDICTION_VARIANCE_THRESH = 100.0
   CONFUSION_MATRIX_COMPUTATION_BATCH_SIZE = 100
+  SAVE_VISUALIZATIONS = True
+  SAVE_ENTROPY_VALUES = True
   USE_MULTI_GPU = True if len(gpus) > 1 else False
   NUM_WORKERS = cfg.TEST.workers
   if cfg.TEST.use_gpu:
@@ -480,7 +508,8 @@ def main(cfg, args, gpus):
     "test_01_ganet_v0": [1007, 1012, 1017, 1022, 1027, 1032, 2007, 2012, 2017, 2022, 2027, 2032],
     "test_ood_01_ganet_v0": [3005, 3006, 3007, 3008, 3009, 3010, 3011, 3012, 3013, 3014, 3015, 3016, 3017, 3018, 3019, 3020, 3021, 3022, 3023, 3024, 3025, 3026, 3027, 3028, 3029, 3030, 3031, 3032, 3033, 3034, 3035, 3036],
     "test_ood_N_01_ganet_v0": [1000, 1001, 1002, 1003],
-    "test_ood_africa_01_ganet_v0": [1000, 1001, 1002, 1003, 1004]
+    "test_ood_africa_01_ganet_v0": [1000, 1001, 1002, 1003, 1004],
+    "test_ood_africa_02_ganet_v0": [1010, 1011, 1012, 1013]
   }
 
   class_weights_dict = {
@@ -489,7 +518,9 @@ def main(cfg, args, gpus):
     "test_ood_N_01_ganet_v0": torch.tensor(
       [8731419.0 / 184377799.0, 175646380.0 / 184377799.0], dtype=torch.float32),  # NF, F
     "test_ood_africa_01_ganet_v0": torch.tensor(
-      [48456861.0 / 134077512.0, 85620651.0 / 134077512.0], dtype=torch.float32)  # NF, F
+      [48456861.0 / 134077512.0, 85620651.0 / 134077512.0], dtype=torch.float32),  # NF, F
+    "test_ood_africa_02_ganet_v0": torch.tensor(
+      [7418926.0 / 115252778.0, 107833852.0 / 115252778.0], dtype=torch.float32),  # NF, F 
   }
 
   session_list_test = [7, 9, 10]
@@ -740,6 +771,8 @@ def main(cfg, args, gpus):
             ensemble_prediction[j, :, :, :] = output
             j += 1
           prediction = torch.mean(ensemble_prediction, axis=0)
+          prediction_variance = torch.mean(torch.var(ensemble_prediction, axis=0), axis=1)
+          
                     
           if cfg.TRAIN.use_masked_loss and cfg.MODEL.is_regression_mode:
             loss = criterion(prediction, feed_dict['target'], feed_dict['mask'])
@@ -754,13 +787,20 @@ def main(cfg, args, gpus):
           # Compute Entropy
           # TODO: Handle batch_size > 1
           entropy = torch.sum(-prediction * torch.log(prediction + 1e-15), dim=1)
-          ood_mask = entropy > ENTROPY_THRESH # 1 X H X W
+          entropy_mask = entropy > ENTROPY_THRESH # 1 X H X W
           entropy.unsqueeze_(1)
+          
+          prediction_var_mask = prediction_variance > PREDICTION_VARIANCE_THRESH # 1 X H X W
+          prediction_variance.unsqueeze_(1)
 
           masked_entropy = entropy[feed_dict['mask']]
           all_masked_entropy = np.concatenate((all_masked_entropy, masked_entropy.cpu().numpy()))
           
-
+          # Switch between entropy_mask and prediction_var_mask
+          if DETECT_OOD_BASED_ON_ENTROPY:
+            ood_mask = entropy_mask
+          else:
+            ood_mask = prediction_var_mask
             
           prediction_label = torch.argmax(prediction, dim=1)
           
@@ -795,6 +835,9 @@ def main(cfg, args, gpus):
                                             target.size()[2]))
           
           prediction_label = torch.argmax(output, dim=1)
+          
+          # Empty dummy tensor (this is only used in the ensemble mode)
+          ood_mask = torch.tensor([], dtype=torch.float32, device=feed_dict['target'].device)
 
         
         if cfg.TRAIN.use_masked_loss:
@@ -817,7 +860,8 @@ def main(cfg, args, gpus):
           all_predictions = np.array([], dtype=np.int_)
           all_binary_labels = np.array([], dtype=np.int_)
           
-          # TODO: Save the entropy data to file
+          # Save the entropy data to file
+          if SAVE_ENTROPY_VALUES:
           entropy_out_dir = os.path.join(RESULT_SAVE_DIR, 'entropy')
           if not os.path.exists(entropy_out_dir):
             os.makedirs(entropy_out_dir)
@@ -840,14 +884,17 @@ def main(cfg, args, gpus):
       target_np = target.to(torch.device("cpu")).numpy()
       output_np = output.to(torch.device("cpu")).numpy()
       
-      
-      visualize_failure_predictions(prediction_label.cpu().numpy(), mask_np, input_np, RESULT_SAVE_DIR, session_nums.cpu().numpy(), img_names, unnormalize=True)
+      if SAVE_VISUALIZATIONS:
+        visualize_failure_predictions(prediction_label.cpu().numpy(), mask_np, ood_mask.cpu().numpy(), input_np, RESULT_SAVE_DIR, session_nums.cpu().numpy(), img_names, unnormalize=True, visualize_ood=cfg.TEST.is_ensemble)
       
       # TODO: Handle batch_size > 1. Currently only visuzlize the first image in the batch
       # TODO: tune max unc threshold param
       session_name = "{0:05d}".format(session_nums[0])
       visualize_scalar_img_on_rgb(
-      entropy.cpu().numpy(), input_np, os.path.join(RESULT_SAVE_DIR, session_name, 'prediction_entropy_vis'), img_ids[0], max_unc_threshold=0.05, unnormalize=True)
+        entropy.cpu().numpy(), input_np, os.path.join(RESULT_SAVE_DIR, session_name, 'prediction_entropy_vis'), img_ids[0], max_unc_threshold=ENTROPY_THRESH, unnormalize=True)
+        
+        visualize_scalar_img_on_rgb(
+        prediction_variance.cpu().numpy(), input_np, os.path.join(RESULT_SAVE_DIR, session_name, 'prediction_variance_vis'), img_ids[0], max_unc_threshold=PREDICTION_VARIANCE_THRESH, unnormalize=True)
       
 
       # # TODO: TEMPORARY Debugging
@@ -900,6 +947,7 @@ def main(cfg, args, gpus):
     
     
   # Save the entropy data to file
+  if SAVE_ENTROPY_VALUES:
   entropy_out_dir = os.path.join(RESULT_SAVE_DIR, 'entropy')
   if not os.path.exists(entropy_out_dir):
     os.makedirs(entropy_out_dir)
