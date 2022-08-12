@@ -227,6 +227,7 @@ def main(cfg, args, gpus):
                               output_image_color=cfg.DATASET.use_color_images,
                               session_prefix_length=cfg.DATASET.session_prefix_len,
                               raw_img_folder=cfg.DATASET.raw_img_folder,
+                              raw_img_folder_second_camera=cfg.DATASET.raw_img_folder_second_camera,
                               label_img_folder=cfg.DATASET.label_img_folder,
                               mask_img_folder=cfg.DATASET.mask_img_folder,
                               no_meta_data_available=True,
@@ -235,7 +236,8 @@ def main(cfg, args, gpus):
                               transform_target=data_transform_target,
                               load_masks=load_mask,
                               regression_mode=cfg.MODEL.is_regression_mode,
-                              binarize_target=cfg.DATASET.binarize_target)
+                              binarize_target=cfg.DATASET.binarize_target,
+                              stereo_mode=cfg.MODEL.is_stereo)
   val_dataset = DepthErrorDataset(cfg.DATASET.root,
                               cfg.DATASET.raw_img_root,
                               session_list_val,
@@ -243,6 +245,7 @@ def main(cfg, args, gpus):
                               output_image_color=cfg.DATASET.use_color_images,
                               session_prefix_length=cfg.DATASET.session_prefix_len,
                               raw_img_folder=cfg.DATASET.raw_img_folder,
+                              raw_img_folder_second_camera=cfg.DATASET.raw_img_folder_second_camera,
                               label_img_folder=cfg.DATASET.label_img_folder,
                               mask_img_folder=cfg.DATASET.mask_img_folder,
                               no_meta_data_available=True,
@@ -251,7 +254,8 @@ def main(cfg, args, gpus):
                               transform_target=data_transform_target,
                               load_masks=load_mask,
                               regression_mode=cfg.MODEL.is_regression_mode,
-                              binarize_target=cfg.DATASET.binarize_target)
+                              binarize_target=cfg.DATASET.binarize_target,
+                              stereo_mode=cfg.MODEL.is_stereo)
   datasets = {phases[0]: train_dataset, phases[1]: val_dataset}
 
   data_loaders = {x: torch.utils.data.DataLoader(datasets[x],

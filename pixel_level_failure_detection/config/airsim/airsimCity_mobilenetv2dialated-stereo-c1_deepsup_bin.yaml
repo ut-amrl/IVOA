@@ -1,0 +1,71 @@
+DATASET:
+  num_class: 2
+  root: "/robodata/user_data/srabiee/results/ipr/depth_prediction/ganet_deep_airsim_01_dropout/model0_r0.0_mcdropoutOff_epoch_14/cityenv_wb/"
+  raw_img_root: "/robodata/srabiee/AirSim_IVSLAM/cityenv_wb/"
+  raw_img_folder: "img_left"
+  raw_img_folder_second_camera : "img_right"
+  mask_img_folder: "valid_pixel_mask_abs1.0_rel_0.2_maxRange30_ds"
+  label_img_folder: "depth_err_labels_abs1.0_rel_0.2_maxRange30_ds"
+  train_set: "train_01_ganet_v0"
+  validation_set: "valid_01_ganet_v0"
+  test_set: "test_01_ganet_v0"
+  use_color_images: True
+  is_dataset_color: True
+  session_prefix_len: 5
+  normalize_input: True
+  img_width: 512
+  img_height: 512
+  target_downsampling_rate: 8
+
+MODEL:
+  is_regression_mode : False
+  # name: "ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup"
+  name: "ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_1"
+  # name: "ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_2"
+  # name: "ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_3"
+  arch_encoder: "mobilenetv2dilated_stereo"
+  arch_decoder: "c1_deepsup"
+  fc_dim: 320
+  is_stereo: True
+
+TRAIN:
+  use_gpu : True
+  batch_size_per_gpu: 8 # 8, 10, 20
+  batch_size: 5
+  workers : 4 # 2
+  num_epoch: 200
+  start_epoch: 0
+  snapshot_interval : 1
+
+  optim: "SGD"
+  lr_encoder: 0.02
+  lr_decoder: 0.02
+  lr_pow: 0.9
+  beta1: 0.9
+  weight_decay: 1e-4
+  deep_sup_scale: 0.4
+  fix_bn: False
+  use_masked_loss: True
+
+
+TEST:
+  is_ensemble: False
+  ground_truth_available : True
+  save_raw_output: True
+  measure_inference_time: True
+  output_img_width : 480
+  output_img_height : 300
+  test_model_encoder : "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX_STEREO/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_1/snapshots/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_1_encoder_last_model_0005.pth"
+  test_model_decoder : "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX_STEREO/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_1/snapshots/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_1_decoder_last_model_0005.pth"
+  test_model_encoder_ensemble : ("/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX_STEREO/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_1/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_1_encoder_best_model.pth", "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX_STEREO/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_2/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_2_encoder_best_model.pth", "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX_STEREO/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_3/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_3_encoder_best_model.pth")
+  test_model_decoder_ensemble : ("/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX_STEREO/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_1/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_1_decoder_best_model.pth", "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX_STEREO/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_2/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_2_decoder_best_model.pth", "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX_STEREO/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_3/ivoa_pix_ensemble_epoch_14_e012_mobilenet_stereo_c1deepsup_inst_3_decoder_best_model.pth")
+  use_gpu : True
+  batch_size_per_gpu : 1 #10
+  batch_size: 5 #5 
+  workers: 2 #2 
+
+  
+  # result: "/robodata/srabiee/scratch/results/IVOA/evaluation/GANET_PIX_STEREO/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix_city_wb_ensemble/evaluation_multi_class_test_per_image_entropy_thresh_0.1/"
+  result: "/robodata/srabiee/scratch/results/IVOA/evaluation/GANET_PIX_STEREO/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix_city_wb_inst_1/evaluation_multi_class_test_per_image_temporary/"
+
+DIR: "/robodata/srabiee/scratch/results/IVOA/nn_models/GANET_PIX_STEREO/ganet_deep_airsim_01_mcdropoutOff_r0.0_epoch_14_p36_rg30_errTh1.0_0.2_NoGP_ds_pix/"

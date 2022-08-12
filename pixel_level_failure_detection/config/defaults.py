@@ -23,6 +23,8 @@ _C.DATASET.root = ""
 _C.DATASET.raw_img_root = ""
 # The name of folder under raw_img_root/session#/ that holds the input images.
 _C.DATASET.raw_img_folder = ""
+# The name of folder under raw_img_root/session#/ that holds the input images from the secondary camera.
+_C.DATASET.raw_img_folder_second_camera = ""
 # The name of folder under root_dir/session#/ that holds the label images.
 _C.DATASET.label_img_folder = ""
 # The name of folder under root_dir/session#/ that holds the mask images.
@@ -75,6 +77,8 @@ _C.MODEL.fc_dim = 2048
 # predict confidence mask. If set to true, the model will predict a confidence
 # mask as well as the predicted heatmap for image features.
 _C.MODEL.predict_conf_mask = False
+# Does the model operate on stereo images?
+_C.MODEL.is_stereo = False
 
 # -----------------------------------------------------------------------------
 # Training

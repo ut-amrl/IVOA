@@ -608,6 +608,7 @@ def main(cfg, args, gpus):
                                   output_image_color=cfg.DATASET.use_color_images,
                                   session_prefix_length=cfg.DATASET.session_prefix_len,
                                   raw_img_folder=cfg.DATASET.raw_img_folder,
+                                  raw_img_folder_second_camera=cfg.DATASET.raw_img_folder_second_camera,
                                   label_img_folder=cfg.DATASET.label_img_folder,
                                   mask_img_folder=cfg.DATASET.mask_img_folder,
                                   transform_input=data_transform_input,
@@ -616,7 +617,8 @@ def main(cfg, args, gpus):
                                   regression_mode=cfg.MODEL.is_regression_mode,
                                   binarize_target=cfg.DATASET.binarize_target,
                                   no_meta_data_available=True,
-                                  load_only_with_labels=cfg.TEST.ground_truth_available)
+                                  load_only_with_labels=cfg.TEST.ground_truth_available,
+                                  stereo_mode=cfg.MODEL.is_stereo)
   datasets = {phases[0]: test_dataset}
 
   data_loaders = {x: torch.utils.data.DataLoader(datasets[x],
@@ -884,9 +886,13 @@ def main(cfg, args, gpus):
       target_np = target.to(torch.device("cpu")).numpy()
       output_np = output.to(torch.device("cpu")).numpy()
       
+      # Only use the first three channels of the input image for visualizations since in the case of stereo inputs, channels 4-6 correspond to the secondary image
+      input_np = input_np[:, :3, :, :]
+      
       if SAVE_VISUALIZATIONS:
         visualize_failure_predictions(prediction_label.cpu().numpy(), mask_np, ood_mask.cpu().numpy(), input_np, RESULT_SAVE_DIR, session_nums.cpu().numpy(), img_names, unnormalize=True, visualize_ood=cfg.TEST.is_ensemble)
       
+        if cfg.TEST.is_ensemble:
       # TODO: Handle batch_size > 1. Currently only visuzlize the first image in the batch
       # TODO: tune max unc threshold param
       session_name = "{0:05d}".format(session_nums[0])

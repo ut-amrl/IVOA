@@ -31,7 +31,9 @@ class DepthErrorDataset(Dataset):
                transform_target=None,
                load_masks=False,
                regression_mode=False,
-               binarize_target=True):
+               binarize_target=True,
+               stereo_mode=False,
+               raw_img_folder_second_camera=None):
     DESCRIPTOR_FILE = "descriptors.csv"
     IMG_NAMES_FILE = "img_names.json"
     KEYPOINTS_FILE = "keypoints.json"
@@ -48,6 +50,7 @@ class DepthErrorDataset(Dataset):
     self.transform_target = transform_target
     self.session_name_format = ""
     self.raw_img_folder = raw_img_folder # "image_0", "img_left"
+    self.raw_img_folder_second_camera = raw_img_folder_second_camera
     self.label_img_folder = label_img_folder
     self.mask_img_folder = mask_img_folder
     # If set to true, it means that image file name is NOT available. 
@@ -64,6 +67,7 @@ class DepthErrorDataset(Dataset):
     self.load_only_with_labels=load_only_with_labels
     self.load_masks=load_masks
     self.regression_mode=regression_mode
+    self.stereo_mode=stereo_mode
     
     if no_meta_data_available and (not load_only_with_labels):
       self.load_labels=False
@@ -82,6 +86,10 @@ class DepthErrorDataset(Dataset):
       
     if ((not loaded_image_color) and output_image_color):
       logging.error("Cannot convert from mono to color.")
+      exit()
+      
+    if ((raw_img_folder_second_camera is None) and stereo_mode):
+      logging.error("Running in stereo mode but no second camera image folder specified.")
       exit()
     
     self.img_names = []
@@ -121,6 +129,9 @@ class DepthErrorDataset(Dataset):
     curr_img_path = os.path.join(self.raw_img_dir, session_folder, self.raw_img_folder, self.img_names[idx].rstrip())                    
     curr_img_label_path = os.path.join(self.root_dir, session_folder,self.label_img_folder, self.img_names[idx].rstrip())
     curr_img_mask_path = os.path.join(self.root_dir, session_folder,self.mask_img_folder, self.img_names[idx].rstrip())                       
+    
+    if self.stereo_mode:
+      curr_img_sec_path = os.path.join(self.raw_img_dir, session_folder, self.raw_img_folder_second_camera, self.img_names[idx].rstrip()) 
     
   
 
@@ -206,6 +217,36 @@ class DepthErrorDataset(Dataset):
 
     if self.transform_input:
       img = self.transform_input(img)
+
+    # *****************
+    # Load the secondary image if in stereo mode and concatenate the input images
+      img_sec = io.imread(curr_img_sec_path)
+
+      # Handle color and mono images accordingly
+      raw_img_channels = 1
+      if self.loaded_image_color:
+        raw_img_channels = 3
+        img_sec = img_sec[:, : , 0:raw_img_channels]
+
+      img_sec = img_sec.reshape((img_sec.shape[0], img_sec.shape[1], raw_img_channels))
+
+      # Transform the images to PIL image
+      img_sec = transforms.ToPILImage()(img_sec)
+
+      # Convert the input image to mono if required by the arguments
+      if self.loaded_image_color != self.output_image_color:
+        if not self.output_image_color:
+          img_sec = img_sec.convert(mode="L")
+
+      if self.transform_input:
+        img_sec = self.transform_input(img_sec)
+        
+      # Check if img is a tensor or PIL image and stack them accordingly
+      if not torch.is_tensor(img_sec):
+        img = np.concatenate((img, img_sec), axis=0)
+      else:
+        img = torch.cat((img, img_sec), axis=0)
+      
 
     if not self.load_labels:
       sample = {'img': img,
