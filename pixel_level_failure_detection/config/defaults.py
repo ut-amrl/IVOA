@@ -19,6 +19,8 @@ _C.DATASET.num_class = 1
 
 # Path to processed training data
 _C.DATASET.root = ""
+# Path to the dataset created from depth estimation results of a refined model (if one is available). This is used for separating epistemic uncertainty.
+_C.DATASET.root_refined_model = ""
 # Path to the base dataset directory that has the raw images.
 _C.DATASET.raw_img_root = ""
 # The name of folder under raw_img_root/session#/ that holds the input images.

@@ -19,6 +19,7 @@ from torchvision import transforms, utils
 # This dataset loads full images and the corresponding error label images
 class DepthErrorDataset(Dataset):
   def __init__(self, root_dir, raw_img_dir, session_list,
+               root_refined_model_dir=None,
                loaded_image_color=False, 
                output_image_color=False,
                session_prefix_length=5,
@@ -43,6 +44,7 @@ class DepthErrorDataset(Dataset):
     # between 0 and 255.
     self.binarize_thresh = 10
     self.root_dir = root_dir
+    self.root_refined_model_dir = root_refined_model_dir
     self.raw_img_dir = raw_img_dir
     self.loaded_image_color=loaded_image_color
     self.output_image_color=output_image_color
@@ -73,6 +75,12 @@ class DepthErrorDataset(Dataset):
       self.load_labels=False
     else:
       self.load_labels=True
+
+    if self.root_refined_model_dir is not None and self.load_labels:
+      self.load_refined_model_labels=True
+      print("Loading refined model labels from ", self.root_refined_model_dir)
+    else:
+      self.load_refined_model_labels=False
 
     # The length of the session name prefix
     if (session_prefix_length == 2):
@@ -130,6 +138,9 @@ class DepthErrorDataset(Dataset):
     curr_img_label_path = os.path.join(self.root_dir, session_folder,self.label_img_folder, self.img_names[idx].rstrip())
     curr_img_mask_path = os.path.join(self.root_dir, session_folder,self.mask_img_folder, self.img_names[idx].rstrip())                       
     
+    if self.load_refined_model_labels:
+      curr_img_label_refined_model_path = os.path.join(self.root_refined_model_dir, session_folder,self.label_img_folder, self.img_names[idx].rstrip())
+    
     if self.stereo_mode:
       curr_img_sec_path = os.path.join(self.raw_img_dir, session_folder, self.raw_img_folder_second_camera, self.img_names[idx].rstrip()) 
     
@@ -162,6 +173,31 @@ class DepthErrorDataset(Dataset):
         bin_msk = label_img > (self.binarize_thresh / 255.0)
         labels[bin_msk] = 1
         
+    if self.load_labels and self.load_refined_model_labels:
+      # Load labels corresponding to the prediction errors of the refined model
+      label_img_ref = io.imread(curr_img_label_refined_model_path)
+      label_img_ref = label_img_ref.reshape((label_img_ref.shape[0], label_img_ref.shape[1], 1))
+      label_img_width_ref = label_img_ref.shape[1]
+      label_img_height_ref = label_img_ref.shape[0]
+      if self.binarize_target:
+        bin_msk = label_img_ref > self.binarize_thresh
+        label_img_ref[bin_msk] = 255
+        label_img_ref[np.logical_not(bin_msk)] = 0
+
+      # Transform the images to PIL image
+      label_img_ref = transforms.ToPILImage()(label_img_ref)
+
+      if self.transform_target:
+        label_img_ref = self.transform_target(label_img_ref)
+
+      # Create binary class labels if not in regression mode
+      if not self.regression_mode:
+        if not torch.is_tensor(label_img_ref):
+          label_img_ref = transforms.functional.to_tensor(label_img_ref)
+        labels_ref = torch.zeros_like(label_img_ref, dtype=torch.int64)
+        bin_msk = label_img_ref > (self.binarize_thresh / 255.0)
+        labels_ref[bin_msk] = 1
+        
 
     # Load the target image masks
     if self.load_labels and self.load_masks:
@@ -172,7 +208,7 @@ class DepthErrorDataset(Dataset):
 
       if ((mask_img_width != label_img_width) or 
           (mask_img_height != label_img_height)):
-        logging.error("Mask image and heatmap image sizes are not equal")
+        logging.error("Mask image and label image sizes are not equal")
         exit()
 
       # Transform the images to PIL image
@@ -192,6 +228,22 @@ class DepthErrorDataset(Dataset):
       if labels.nelement() != 0:
         labels = torch.reshape(labels, (label_img.size()[1], 
                                         label_img.size()[2])) 
+        
+
+      if self.load_refined_model_labels:
+        if ((mask_img_width != label_img_width_ref) or 
+            (mask_img_height != label_img_height_ref)):
+          logging.error("Mask image and label image sizes are not equal")
+          exit()
+        
+        # In classification/segmentation mode, the mask is applied to the labels.
+        # masked pixels will get a label class of -1. Apply this to labels_ref
+        if not self.regression_mode:
+          labels_ref[torch.logical_not(mask_img)] = -1
+          
+        if labels_ref.nelement() != 0:
+          labels_ref = torch.reshape(labels_ref, (label_img_ref.size()[1], 
+                                          label_img_ref.size()[2])) 
         
 
 
@@ -220,6 +272,7 @@ class DepthErrorDataset(Dataset):
 
     # *****************
     # Load the secondary image if in stereo mode and concatenate the input images
+    if self.stereo_mode:
       img_sec = io.imread(curr_img_sec_path)
 
       # Handle color and mono images accordingly
@@ -253,12 +306,27 @@ class DepthErrorDataset(Dataset):
                 'img_name': self.img_names[idx],
                 'session': self.session_num[idx]}
     elif self.load_masks:
+      if self.load_refined_model_labels:
+        sample = {'img': img,
+                'labels': labels,
+                'labels_refined_model': labels_ref,
+                'mask_img' : mask_img,
+                'img_name': self.img_names[idx],
+                'session': self.session_num[idx]}        
+      else:
       sample = {'img': img,
                 'labels': labels,
                 'mask_img' : mask_img,
                 'img_name': self.img_names[idx],
                 'session': self.session_num[idx]}
     else:
+      if self.load_refined_model_labels:
+        sample = {'img': img,
+                'labels': labels,
+                'labels_refined_model': labels_ref, 
+                'img_name': self.img_names[idx],
+                'session': self.session_num[idx]}
+      else:        
       sample = {'img': img,
                 'labels': labels, 
                 'img_name': self.img_names[idx],

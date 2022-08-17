@@ -2,6 +2,8 @@ DATASET:
   num_class: 2
   # Trajectories logged in africa_v1.5 but image data collected in africa_v1.4 (different camera extrinsics from the training data)
   root: "/robodata/user_data/srabiee/results/ipr/depth_prediction/ganet_deep_airsim_01_dropout/model0_r0.0_mcdropoutOff_epoch_14/africa_wb/"
+  # Path to the dataset created from depth estimation results of a refined model (if one is available). This is used for separating epistemic uncertainty.
+  root_refined_model: "/robodata/user_data/srabiee/results/ipr/depth_prediction/ganet_deep_airsim_refined_00_dropout/model1_r0.0_mcdropoutOff_epoch_22/africa_wb/"
   raw_img_root: "/robodata/user_data/srabiee/AirSim_BNN/africa_1.4_wb/"
   test_set: "test_ood_africa_01_ganet_v0"
 

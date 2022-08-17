@@ -158,7 +158,7 @@ def plot_confusion_matrix(cm, classes, file_name, file_path,
   plt.close("confusion_mat")
   
   
-def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.ndarray, ood_predictions: np.ndarray, rgb_images: np.ndarray, output_folder_path: str, session_nums: np.ndarray, image_names: list, unnormalize: bool = False, visualize_ood: bool = False):
+def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.ndarray, ood_predictions: np.ndarray, rgb_images: np.ndarray, output_folder_path: str, session_nums: np.ndarray, image_names: list, unnormalize: bool = False, visualize_ood: bool = False, epistemic_unc_masks: np.ndarray = None, aleatoric_unc_masks: np.ndarray = None):
   """
   Colors the failure prediction for each pixel in the image and saves the resulting color image to file.
   :param failure_prediction: pixel-wise failure prediction (numpy array but in tensor shape form, i.e. (N, H, W))
@@ -166,6 +166,8 @@ def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.nda
   :param masks: the input masks (N, 1, H, W)
   :param ood_predictions: the ood predictions (N, 1, H, W). The values should be binary
   :param session_nums: array of session numbers corresponding to each image (N, 1)
+  :param epistemic_unc_masks: the ground-truth epistemic uncertainty masks (N, 1, H, W)
+  :param aleatoric_unc_masks: the ground-truth aleatoric uncertainty masks (N, 1, H, W)
   :return:
   """
   alpha = 0.65
@@ -184,11 +186,18 @@ def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.nda
     ood_predictions = np.squeeze(ood_predictions, axis=1)
   failure_predictions = failure_predictions > 0.5
   
+  visualize_epistemic_mask = True if epistemic_unc_masks is not None else False
+  visualize_aleatoric_mask = True if aleatoric_unc_masks is not None else False
+  
   assert failure_predictions.shape[0] == len(image_names)
   
   for i in range(failure_predictions.shape[0]):
     failure_prediction = failure_predictions[i, :, :]
     mask = masks[i, :, :]
+    if visualize_epistemic_mask:
+      mask_epistemic = epistemic_unc_masks[i, :, :]
+    if visualize_aleatoric_mask:
+      mask_aleatoric = aleatoric_unc_masks[i, :, :]
     if visualize_ood:
       ood_prediction = ood_predictions[i, :, :]
     rgb_image = rgb_images[i, :, :, :]
@@ -213,6 +222,11 @@ def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.nda
     gray_img_overlaid_masked = gray_img_overlaid.copy()
     gray_img_overlaid_with_ood_masked = gray_img_overlaid.copy()
 
+    if visualize_epistemic_mask:
+      gray_img_overlaid_with_epistemic_masked = gray_img_overlaid.copy()
+    if visualize_aleatoric_mask:
+      gray_img_overlaid_with_aleatoric_masked = gray_img_overlaid.copy()
+
     failure_prediction_color = np.zeros(gray_img_overlaid.shape, dtype=np.uint8)
     failure_prediction_color[failure_prediction] = [0, 0, 255, 255]
     failure_prediction_color[np.logical_not(failure_prediction)] = [
@@ -236,10 +250,31 @@ def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.nda
       failure_prediction_color_ood_masked[np.logical_not(mask)] = [255, 0, 0, 255]
       cv2.addWeighted(failure_prediction_color_ood_masked, alpha, gray_img_overlaid_with_ood_masked, 1 - alpha, 0, gray_img_overlaid_with_ood_masked)
     
+    if visualize_epistemic_mask:
+      epistemic_mask_color = np.zeros(gray_img_overlaid.shape, dtype=np.uint8)
+      epistemic_mask_color[mask_epistemic] = [255, 0, 255, 255]
+      epistemic_mask_color[np.logical_not(mask_epistemic)] = [
+          0, 255, 0, 255]
+      epistemic_mask_color_masked = epistemic_mask_color
+      epistemic_mask_color_masked[np.logical_not(mask)] = [255, 0, 0, 255]
+      cv2.addWeighted(epistemic_mask_color_masked, alpha, gray_img_overlaid_with_epistemic_masked, 1 - alpha, 0, gray_img_overlaid_with_epistemic_masked)
+      
+    if visualize_aleatoric_mask:
+      aleatoric_mask_color = np.zeros(gray_img_overlaid.shape, dtype=np.uint8)
+      aleatoric_mask_color[mask_aleatoric] = [255, 0, 255, 255]
+      aleatoric_mask_color[np.logical_not(mask_aleatoric)] = [
+          0, 255, 0, 255]
+      aleatoric_mask_color_masked = aleatoric_mask_color
+      aleatoric_mask_color_masked[np.logical_not(mask)] = [255, 0, 0, 255]
+      cv2.addWeighted(aleatoric_mask_color_masked, alpha, gray_img_overlaid_with_aleatoric_masked, 1 - alpha, 0, gray_img_overlaid_with_aleatoric_masked)
+      
+    
     # Create output folder if it does not exist
     output_path_vis = os.path.join(output_folder_path, str(session_idx), 'failure_pred_vis')
     output_path_vis_masked = os.path.join(output_folder_path, str(session_idx), 'failure_pred_masked_vis')
     output_path_vis_ood_masked = os.path.join(output_folder_path, str(session_idx), 'failure_pred_with_ood_masked_vis')
+    output_path_vis_epistemic_masked = os.path.join(output_folder_path, str(session_idx), 'gt_epistemic_unc_vis')
+    output_path_vis_aleatoric_masked = os.path.join(output_folder_path, str(session_idx), 'gt_aleatoric_unc_vis')
     if not os.path.exists(output_folder_path):
       os.makedirs(output_folder_path)
     if not os.path.exists(output_path_vis):
@@ -248,9 +283,15 @@ def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.nda
       os.makedirs(output_path_vis_masked)
     if not os.path.exists(output_path_vis_ood_masked) and visualize_ood:
       os.makedirs(output_path_vis_ood_masked)
+    if not os.path.exists(output_path_vis_epistemic_masked) and visualize_epistemic_mask:
+      os.makedirs(output_path_vis_epistemic_masked)
+    if not os.path.exists(output_path_vis_aleatoric_masked) and visualize_aleatoric_mask:
+      os.makedirs(output_path_vis_aleatoric_masked)
     output_image_path = os.path.join(output_path_vis, image_idx + ".png")
     output_image_masked_path = os.path.join(output_path_vis_masked, image_idx + ".png")
     output_image_ood_masked_path = os.path.join(output_path_vis_ood_masked, image_idx + ".png")
+    output_image_epistemic_masked_path = os.path.join(output_path_vis_epistemic_masked, image_idx + ".png")
+    output_image_aleatoric_masked_path = os.path.join(output_path_vis_aleatoric_masked, image_idx + ".png")
     cv2.imwrite(output_image_path,
                 gray_img_overlaid)
     cv2.imwrite(output_image_masked_path,
@@ -258,6 +299,12 @@ def visualize_failure_predictions(failure_predictions: np.ndarray, masks: np.nda
     if visualize_ood:
       cv2.imwrite(output_image_ood_masked_path,
                 gray_img_overlaid_with_ood_masked)
+    if visualize_epistemic_mask:
+      cv2.imwrite(output_image_epistemic_masked_path,
+                gray_img_overlaid_with_epistemic_masked)
+    if visualize_aleatoric_mask:
+      cv2.imwrite(output_image_aleatoric_masked_path,
+                gray_img_overlaid_with_aleatoric_masked)
   
 def convert_image_name_to_index(image_name):
   """
@@ -601,9 +648,15 @@ def main(cfg, args, gpus):
             transforms.ToTensor()
         ])
   load_mask = cfg.TRAIN.use_masked_loss or cfg.MODEL.predict_conf_mask
+  
+  root_refined_model_dir = cfg.DATASET.root_refined_model if cfg.DATASET.root_refined_model!="" else None
+  
+  loading_refined_model_labels = True if (root_refined_model_dir is not None) and cfg.TEST.ground_truth_available else False
+  
   test_dataset = DepthErrorDataset(cfg.DATASET.root,
                                   cfg.DATASET.raw_img_root,
                                   session_list_test,
+                                  root_refined_model_dir=root_refined_model_dir,
                                   loaded_image_color=cfg.DATASET.is_dataset_color,
                                   output_image_color=cfg.DATASET.use_color_images,
                                   session_prefix_length=cfg.DATASET.session_prefix_len,
@@ -717,6 +770,16 @@ def main(cfg, args, gpus):
   all_predictions = np.array([], dtype=np.int_)
   all_binary_labels = np.array([], dtype=np.int_)
   cnf_matrix = np.zeros((2, 2), dtype=np.int_)
+  # predictions, labels, and confusion matrix for subset of the data that
+  # does not include any instances of epistemic uncertainty
+  all_predictions_non_epistemic = np.array([], dtype=np.int_)
+  all_binary_labels_non_epistemic = np.array([], dtype=np.int_)
+  cnf_matrix_non_epistemic = np.zeros((2, 2), dtype=np.int_)
+  # predictions, labels, and confusion matrix for subset of the data that
+  # does not include any instances of aleatoric uncertainty
+  all_predictions_non_aleatoric = np.array([], dtype=np.int_)
+  all_binary_labels_non_aleatoric = np.array([], dtype=np.int_)
+  cnf_matrix_non_aleatoric = np.zeros((2, 2), dtype=np.int_)
   valid_data_points_count = 0
 
   pred_ood_in_range_count = 0 # Counts the number of predicted OOD data points that were also within the valid depth range
@@ -752,6 +815,15 @@ def main(cfg, args, gpus):
       if not cfg.MODEL.is_regression_mode:
         target = data['labels']
         feed_dict['target'] = target.to(device)
+        
+        if loading_refined_model_labels:
+          target_refined_model = data['labels_refined_model']
+          gt_epistemic_unc_mask = torch.logical_and(target_refined_model == 0, target == 1)
+          # gt_aleatoric_unc_mask = target_refined_model == 1
+          gt_aleatoric_unc_mask = torch.logical_and(target_refined_model == 1, target == 1)
+          
+          gt_non_epistemic_unc_mask = torch.logical_not(gt_epistemic_unc_mask)
+          gt_non_aleatoric_unc_mask = torch.logical_not(gt_aleatoric_unc_mask)
       else:
         print("ERROR: Regression mode not supported")
         exit()
@@ -849,6 +921,20 @@ def main(cfg, args, gpus):
           all_predictions = np.concatenate((all_predictions, current_pred), 0) 
           all_binary_labels = np.concatenate((all_binary_labels, curr_labels), 0)
           
+          # Generate different versions of the labels and predictions via masking out aleatoric and epistemic uncertainty           
+          if loading_refined_model_labels:
+            curr_mask = torch.logical_and(gt_non_epistemic_unc_mask, mask)
+            curr_labels_non_epistemic = target[curr_mask].numpy().astype(np.int_)
+            current_pred_non_epistemic = prediction_label[torch.squeeze(curr_mask, 1)].cpu().numpy().astype(np.int_)
+            all_predictions_non_epistemic = np.concatenate((all_predictions_non_epistemic, current_pred_non_epistemic), 0) 
+            all_binary_labels_non_epistemic = np.concatenate((all_binary_labels_non_epistemic, curr_labels_non_epistemic), 0)
+            
+            curr_mask = torch.logical_and(gt_non_aleatoric_unc_mask, mask)
+            curr_labels_non_aleatoric = target[curr_mask].numpy().astype(np.int_)
+            current_pred_non_aleatoric = prediction_label[torch.squeeze(curr_mask, 1)].cpu().numpy().astype(np.int_)
+            all_predictions_non_aleatoric = np.concatenate((all_predictions_non_aleatoric, current_pred_non_aleatoric), 0) 
+            all_binary_labels_non_aleatoric = np.concatenate((all_binary_labels_non_aleatoric, curr_labels_non_aleatoric), 0)
+          
           
         if i % CONFUSION_MATRIX_COMPUTATION_BATCH_SIZE == 0 and i > 0:
           # Compute the confusion matrix for current batch and add it to the total confusion matrix
@@ -861,6 +947,24 @@ def main(cfg, args, gpus):
           valid_data_points_count += all_predictions.size
           all_predictions = np.array([], dtype=np.int_)
           all_binary_labels = np.array([], dtype=np.int_)
+          
+          if loading_refined_model_labels:
+            cnf_matrix_non_epistemic = cnf_matrix_non_epistemic + confusion_matrix(
+                all_binary_labels_non_epistemic, all_predictions_non_epistemic)
+            print("Current non epistemic confusion matrix:")
+            print(cnf_matrix_non_epistemic)
+            
+            cnf_matrix_non_aleatoric = cnf_matrix_non_aleatoric + confusion_matrix(
+                all_binary_labels_non_aleatoric, all_predictions_non_aleatoric)
+            print("Current non aleatoric confusion matrix:")
+            print(cnf_matrix_non_aleatoric)
+
+            # Reset the arrays
+            all_predictions_non_epistemic = np.array([], dtype=np.int_)
+            all_binary_labels_non_epistemic = np.array([], dtype=np.int_)
+            all_predictions_non_aleatoric = np.array([], dtype=np.int_)
+            all_binary_labels_non_aleatoric = np.array([], dtype=np.int_)
+            
           
           # Save the entropy data to file
           if SAVE_ENTROPY_VALUES:
@@ -890,7 +994,12 @@ def main(cfg, args, gpus):
       input_np = input_np[:, :3, :, :]
       
       if SAVE_VISUALIZATIONS:
+        if not loading_refined_model_labels:
         visualize_failure_predictions(prediction_label.cpu().numpy(), mask_np, ood_mask.cpu().numpy(), input_np, RESULT_SAVE_DIR, session_nums.cpu().numpy(), img_names, unnormalize=True, visualize_ood=cfg.TEST.is_ensemble)
+        else:
+          visualize_failure_predictions(prediction_label.cpu().numpy(), mask_np, ood_mask.cpu().numpy(), input_np, RESULT_SAVE_DIR, session_nums.cpu().numpy(), img_names, unnormalize=True, visualize_ood=cfg.TEST.is_ensemble, epistemic_unc_masks=gt_epistemic_unc_mask.numpy(), aleatoric_unc_masks=gt_aleatoric_unc_mask.numpy())
+        
+        
       
         if cfg.TEST.is_ensemble:
       # TODO: Handle batch_size > 1. Currently only visuzlize the first image in the batch
@@ -940,6 +1049,13 @@ def main(cfg, args, gpus):
                                                all_predictions)
     valid_data_points_count += all_predictions.size
     
+    if loading_refined_model_labels:
+      cnf_matrix_non_epistemic = cnf_matrix_non_epistemic + confusion_matrix(
+          all_binary_labels_non_epistemic, all_predictions_non_epistemic)
+      
+      cnf_matrix_non_aleatoric = cnf_matrix_non_aleatoric + confusion_matrix(
+          all_binary_labels_non_aleatoric, all_predictions_non_aleatoric)
+    
   report = compute_classification_report_from_cnf(cnf_matrix)
   print("Classification Report: ")
   print(report)
@@ -950,6 +1066,27 @@ def main(cfg, args, gpus):
     writer = csv.DictWriter(csvfile, fieldnames=report[0].keys())
     writer.writeheader()
     writer.writerows(report)
+    
+  if loading_refined_model_labels:
+    report_non_epistemic = compute_classification_report_from_cnf(cnf_matrix_non_epistemic)
+    report_non_aleatoric = compute_classification_report_from_cnf(cnf_matrix_non_aleatoric)
+    print("Classification Report Excluding Epistemic Uncertainty: ")
+    print(report_non_epistemic)
+    print("Classification Report Excluding Aleatoric Uncertainty: ")
+    print(report_non_aleatoric)
+    # Save classification report to file
+    report_non_epistemic_file_path = os.path.join(cfg.TEST.result, 'classification_report_non_epistemic.csv')
+    report_non_aleatoric_file_path = os.path.join(cfg.TEST.result, 'classification_report_non_aleatoric.csv')
+    with open(report_non_epistemic_file_path, 'w') as csvfile:
+      print("Writing classification report (excluding epistemic unc.) to file: " + report_non_epistemic_file_path)
+      writer = csv.DictWriter(csvfile, fieldnames=report[0].keys())
+      writer.writeheader()
+      writer.writerows(report_non_epistemic)
+    with open(report_non_aleatoric_file_path, 'w') as csvfile:
+      print("Writing classification report (excluding aleatoric unc.) to file: " + report_non_aleatoric_file_path)
+      writer = csv.DictWriter(csvfile, fieldnames=report[0].keys())
+      writer.writeheader()
+      writer.writerows(report_non_aleatoric)
     
     
   # Save the entropy data to file
@@ -965,6 +1102,16 @@ def main(cfg, args, gpus):
   cnf_file_path = os.path.join(cfg.TEST.result, 'confusion_mat_binary.csv')
   print("Writing confusion matrix to file: " + cnf_file_path)
   np.savetxt(cnf_file_path, cnf_matrix, delimiter=",", fmt=['%d', '%d'])
+  
+  if loading_refined_model_labels:
+    cnf_file_path_non_epistemic = os.path.join(cfg.TEST.result, 'confusion_mat_non_epistemic_binary.csv')
+    print("Writing confusion matrix to file: " + cnf_file_path_non_epistemic)
+    np.savetxt(cnf_file_path_non_epistemic, cnf_matrix_non_epistemic, delimiter=",", fmt=['%d', '%d'])
+    
+    cnf_file_path_non_aleatoric = os.path.join(cfg.TEST.result, 'confusion_mat_non_aleatoric_binary.csv')
+    print("Writing confusion matrix to file: " + cnf_file_path_non_aleatoric)
+    np.savetxt(cnf_file_path_non_aleatoric, cnf_matrix_non_aleatoric, delimiter=",", fmt=['%d', '%d'])
+      
 
   # Save the total loss to file
   loss_file_path = os.path.join(cfg.TEST.result, 'NLL_loss.txt')
@@ -983,6 +1130,17 @@ def main(cfg, args, gpus):
             ['NF', 'F'],
             "confusion_mat_binary", cfg.TEST.result,
             normalize=True)
+  if loading_refined_model_labels:
+    plot_confusion_matrix(
+              cnf_matrix_non_epistemic,
+              ['NF', 'F'],
+              "confusion_mat_non_epistemic_binary", cfg.TEST.result,
+              normalize=True)
+    plot_confusion_matrix(
+              cnf_matrix_non_aleatoric,
+              ['NF', 'F'],
+              "confusion_mat_non_aleatoric_binary", cfg.TEST.result,
+              normalize=True)
 
 
 if __name__=="__main__":
